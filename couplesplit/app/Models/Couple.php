@@ -19,4 +19,8 @@ class Couple extends Model
     {
         return $this->hasMany(Expense::class);
     }
+    public function invitations(): HasMany
+    {
+        return $this->hasMany(CoupleInvitation::class);
+    }
 }

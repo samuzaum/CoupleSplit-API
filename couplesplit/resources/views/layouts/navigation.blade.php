@@ -12,8 +12,21 @@
 
                 <!-- Navigation Links -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
+
                     <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                         {{ __('Dashboard') }}
+                    </x-nav-link>
+                    
+                    <x-nav-link :href="route('expenses.create')" :active="request()->routeIs('expenses.create')">
+                        {{ __('Nova despesa') }}
+                    </x-nav-link>
+
+                    <x-nav-link :href="route('expenses.index')" :active="request()->routeIs('expenses.index')">
+                        {{ __('Despesas') }}
+                    </x-nav-link>
+
+                    <x-nav-link :href="route('cards.index')" :active="request()->routeIs('cards.*')">
+                        {{ __('Cartões') }}
                     </x-nav-link>
                 </div>
             </div>

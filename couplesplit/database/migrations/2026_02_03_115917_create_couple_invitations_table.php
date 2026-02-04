@@ -11,12 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('expense_splits', function (Blueprint $table) {
+        Schema::create('couple_invitations', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('expense_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->decimal('amount', 10, 2);
-            $table->boolean('is_paid')->default(false);
+
+            $table->foreignId('couple_id')->constrained()->cascadeOnDelete();
+            $table->string('email');
+            $table->string('token')->unique();
+            $table->timestamp('accepted_at')->nullable();
+
             $table->timestamps();
         });
     }
@@ -26,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('expense_splits');
+        Schema::dropIfExists('couple_invitations');
     }
 };
