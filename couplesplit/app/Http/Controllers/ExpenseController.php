@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Expense;
-use App\Models\ExpenseSplit;
 use App\Models\Card;
+use App\Models\Balance;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
@@ -54,8 +54,8 @@ class ExpenseController extends Controller
             'is_shared'    => $request->is_shared,
         ]);
 
-        // 🔑 ÚNICA lógica responsável por criar splits
-        $this->createSplits($expense);
+        // 🔑 REGISTRA O IMPACTO FINANCEIRO
+        $this->createBalances($expense);
 
         return redirect()
             ->route('expenses.index')
@@ -63,40 +63,57 @@ class ExpenseController extends Controller
     }
 
     /* =========================
-     * SPLITS (REGRA DE NEGÓCIO)
+     * BALANCES (REGRA DE NEGÓCIO)
      * ========================= */
-    private function createSplits(Expense $expense): void
+    private function createBalances(Expense $expense): void
     {
-        $users = $expense->couple->users;
+        $users  = $expense->couple->users;
+        $payer  = $expense->payer; // quem pagou
+        $amount = $expense->amount;
 
-        // ➤ Despesa pessoal → tudo para quem pagou
+        // ➤ DESPESA PESSOAL
         if (!$expense->is_shared) {
-            $expense->splits()->create([
-                'user_id' => $expense->paid_by,
-                'amount'  => $expense->amount,
-                'is_paid' => true,
-            ]);
-
+            // ninguém deve nada a ninguém
             return;
         }
 
-        // ➤ Despesa compartilhada → divide igualmente
-        $perUser = round(
-            $expense->amount / $users->count(),
-            2
-        );
+        $perUser = round($amount / $users->count(), 2);
 
         foreach ($users as $user) {
-            $expense->splits()->create([
-                'user_id' => $user->id,
-                'amount'  => $perUser,
-                'is_paid' => $user->id === $expense->paid_by,
+            if ($user->id === $payer->id) {
+                continue;
+            }
+
+            // 🔴 quem pagou → CRÉDITO
+            Balance::create([
+                'couple_id'        => $expense->couple_id,
+                'user_id'          => $payer->id,
+                'related_user_id'  => $user->id,
+                'amount'           => $perUser,
+                'used_amount'      => 0,
+                'type'             => 'credit',
+                'origin'           => 'expense',
+                'origin_table'     => 'expenses',
+                'origin_id'        => $expense->id,
+            ]);
+
+            // 🔵 quem deve → DÉBITO
+            Balance::create([
+                'couple_id'        => $expense->couple_id,
+                'user_id'          => $user->id,
+                'related_user_id'  => $payer->id,
+                'amount'           => $perUser,
+                'used_amount'      => 0,
+                'type'             => 'debit',
+                'origin'           => 'expense',
+                'origin_table'     => 'expenses',
+                'origin_id'        => $expense->id,
             ]);
         }
     }
 
     /* =========================
-     * INDEX (TODAS)
+     * INDEX – TODAS
      * ========================= */
     public function index()
     {

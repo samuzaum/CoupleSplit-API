@@ -17,8 +17,8 @@
                         {{ __('Dashboard') }}
                     </x-nav-link>
                     
-                    <x-nav-link :href="route('expenses.create')" :active="request()->routeIs('expenses.create')">
-                        {{ __('Nova despesa') }}
+                    <x-nav-link :href="route('payments.create')" :active="request()->routeIs('payments.*')">
+                        {{ __('Pagamentos') }}
                     </x-nav-link>
 
                     <x-nav-link :href="route('expenses.index')" :active="request()->routeIs('expenses.index')">

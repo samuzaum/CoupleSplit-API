@@ -5,7 +5,11 @@
         </h2>
     </x-slot>
 
-    <div class="py-6 max-w-3xl mx-auto">
+    <div class="py-6 max-w-3xl mx-auto space-y-6">
+
+        {{-- =====================
+            BLOCO DO CASAL
+        ===================== --}}
         @php
             $user = auth()->user();
             $couple = $user->couples()->first();
@@ -17,57 +21,121 @@
                     {{ $couple->name ?? 'Seu casal' }}
                 </h3>
 
-                <p class="text-sm text-gray-600 mb-4">
-                    Membros:
-                </p>
+                <p class="text-sm text-gray-600 mb-2">Membros:</p>
 
-                <ul class="list-disc list-inside">
+                <ul class="list-disc list-inside text-sm">
                     @foreach($couple->users as $member)
                         <li>{{ $member->name }}</li>
                     @endforeach
                 </ul>
             </div>
-        @else
-            <div class="bg-yellow-100 p-6 rounded">
-                <p class="mb-4">
-                    Você ainda não faz parte de um casal.
-                </p>
-
-                <a
-                    href="{{ route('couples.create') }}"
-                    class="text-indigo-600 font-semibold"
-                >
-                    Criar casal
-                </a>
-            </div>
         @endif
-    </div>
-    @if(isset($netBalance) && $partner)
-        <div class="py-6 max-w-3xl mx-auto text-center
-            {{ $netBalance > 0 ? 'bg-green-100 text-green-800' 
-            : ($netBalance < 0 ? 'bg-red-100 text-red-800' 
-            : 'bg-gray-100 text-gray-700') }}">
 
-            @if($netBalance > 0)
-                <strong>{{ $partner->name }}</strong> te deve
-                <strong>R$ {{ number_format($netBalance, 2, ',', '.') }}</strong>
-            @elseif($netBalance < 0)
-                Você deve
-                <strong>{{ $partner->name }}</strong>
-                <strong>R$ {{ number_format(abs($netBalance), 2, ',', '.') }}</strong>
+
+        {{-- =====================
+            SITUAÇÃO ENTRE VOCÊS
+        ===================== --}}
+        <div class="bg-white p-6 rounded shadow text-center">
+            <h3 class="text-lg font-semibold mb-2">
+                Situação entre vocês
+            </h3>
+
+            @if ($netBalance > 0)
+                <p class="text-green-700">
+                    <strong>{{ $partner->name }}</strong> te deve
+                    <strong>R$ {{ number_format($netBalance, 2, ',', '.') }}</strong>
+                </p>
+            @elseif ($netBalance < 0)
+                <p class="text-red-700">
+                    Você deve
+                    <strong>{{ $partner->name }}</strong>
+                    <strong>R$ {{ number_format(abs($netBalance), 2, ',', '.') }}</strong>
+                </p>
             @else
-                Tudo certo! Nenhuma pendência entre vocês
+                <p class="text-gray-600">
+                    Nenhuma pendência entre vocês
+                </p>
             @endif
 
+            <div class="mt-4">
+                <a href="{{ route('payments.create') }}"
+                   class="inline-block px-4 py-2 bg-blue-600 text-white rounded">
+                    Registrar pagamento
+                </a>
+            </div>
         </div>
-    @endif
-    @if(isset($netBalance) && $netBalance > 0)
-        <form method="POST" action="{{ route('debts.settle') }}" class="mt-4">
-            @csrf
-            <button type="submit"
-                class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
-                Marcar como pago
-            </button>
-        </form>
-    @endif
+
+
+        {{-- =====================
+            DÉBITOS EM ABERTO
+        ===================== --}}
+        <div class="bg-white p-6 rounded shadow">
+            <h3 class="font-semibold mb-3">
+                Dívidas em aberto
+            </h3>
+
+            @if ($openDebits->isEmpty())
+                <p class="text-sm text-gray-600">
+                    Nenhuma dívida pendente.
+                </p>
+            @else
+                <ul class="space-y-2 text-sm">
+                    @foreach ($openDebits as $debit)
+                        @php
+                            $remaining = $debit->amount - $debit->used_amount;
+                        @endphp
+
+                        <li class="flex justify-between">
+                            <span>{{ $debit->description }}</span>
+                            <strong>
+                                R$ {{ number_format($remaining, 2, ',', '.') }}
+                            </strong>
+                        </li>
+                    @endforeach
+                </ul>
+
+                <div class="mt-3 text-sm text-gray-700 text-right">
+                    Total em aberto:
+                    <strong>
+                        R$ {{ number_format(
+                            $openDebits->sum(fn($d) => $d->amount - $d->used_amount),
+                            2, ',', '.'
+                        ) }}
+                    </strong>
+                </div>
+            @endif
+        </div>
+
+
+        {{-- =====================
+            CRÉDITOS EM ABERTO
+        ===================== --}}
+        <div class="bg-white p-6 rounded shadow">
+            <h3 class="font-semibold mb-3">
+                Créditos a receber
+            </h3>
+
+            @if ($openCredits->isEmpty())
+                <p class="text-sm text-gray-600">
+                    Nenhum crédito pendente.
+                </p>
+            @else
+                <ul class="space-y-2 text-sm">
+                    @foreach ($openCredits as $credit)
+                        @php
+                            $remaining = $credit->amount - $credit->used_amount;
+                        @endphp
+
+                        <li class="flex justify-between">
+                            <span>{{ $credit->description }}</span>
+                            <strong class="text-green-700">
+                                R$ {{ number_format($remaining, 2, ',', '.') }}
+                            </strong>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        </div>
+
+    </div>
 </x-app-layout>

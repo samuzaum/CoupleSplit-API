@@ -7,6 +7,7 @@ use App\Http\Controllers\CardController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\CoupleInvitationController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\PaymentController;
 /*
 |--------------------------------------------------------------------------
 | Página inicial pública
@@ -116,7 +117,16 @@ Route::middleware(['auth'])->group(function () {
 
     Route::post('/expenses', [ExpenseController::class, 'store'])
         ->name('expenses.store');
-    
+    /*
+    |--------------------------------------------------------------------------
+    | Pagamentos
+    |--------------------------------------------------------------------------
+    */
+     Route::get('/payments/create', [PaymentController::class, 'create'])
+        ->name('payments.create');
+
+    Route::post('/payments', [PaymentController::class, 'store'])
+    ->name('payments.store');
 });
 
 /*

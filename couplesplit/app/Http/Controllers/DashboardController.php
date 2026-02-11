@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Support\Facades\Auth;
-use App\Models\ExpenseSplit;
+use App\Models\Balance;
 
 class DashboardController extends Controller
 {
@@ -20,36 +20,62 @@ class DashboardController extends Controller
             ->where('users.id', '!=', $user->id)
             ->first();
 
-        if (!$partner) {
-            return view('dashboard');
-        }
+        /* =========================
+         * CRÉDITOS (o que você tem a receber)
+         * ========================= */
+        $credits = Balance::where('user_id', $user->id)
+            ->where('related_user_id', $partner->id)
+            ->where('type', 'credit')
+            ->get();
 
-        // Quanto o USUÁRIO deve (splits não pagos)
-        $userDebt = ExpenseSplit::where('user_id', $user->id)
-            ->where('is_paid', false)
-            ->whereHas('expense', function ($q) use ($couple) {
-                $q->where('couple_id', $couple->id);
-            })
-            ->sum('amount');
+        $creditAvailable = $credits->sum(fn ($b) =>
+            $b->amount - $b->used_amount
+        );
 
-        // Quanto o PARCEIRO deve (splits não pagos)
-        $partnerDebt = ExpenseSplit::where('user_id', $partner->id)
-            ->where('is_paid', false)
-            ->whereHas('expense', function ($q) use ($couple) {
-                $q->where('couple_id', $couple->id);
-            })
-            ->sum('amount');
+        /* =========================
+         * DÉBITOS (o que você deve)
+         * ========================= */
+        $debits = Balance::where('user_id', $user->id)
+            ->where('related_user_id', $partner->id)
+            ->where('type', 'debit')
+            ->get();
 
-        // Saldo líquido:
-        // positivo → parceiro deve
-        // negativo → você deve
-        $netBalance = $partnerDebt - $userDebt;
+        $debitAvailable = $debits->sum(fn ($b) =>
+            $b->amount - $b->used_amount
+        );
+
+        /* =========================
+         * SALDO LÍQUIDO
+         * ========================= */
+        $netBalance = $creditAvailable - $debitAvailable;
+
+        /* =========================
+         * DÉBITOS EM ABERTO (LISTAGEM)
+         * ========================= */
+        $openDebits = Balance::where('user_id', $user->id)
+            ->where('related_user_id', $partner->id)
+            ->where('type', 'debit')
+            ->whereColumn('used_amount', '<', 'amount')
+            ->orderBy('created_at')
+            ->get();
+
+        /* =========================
+         * CRÉDITOS EM ABERTO
+         * ========================= */
+        $openCredits = Balance::where('user_id', $user->id)
+            ->where('related_user_id', $partner->id)
+            ->where('type', 'credit')
+            ->whereColumn('used_amount', '<', 'amount')
+            ->orderBy('created_at')
+            ->get();
 
         return view('dashboard', compact(
             'partner',
             'netBalance',
-            'userDebt',
-            'partnerDebt'
+            'creditAvailable',
+            'debitAvailable',
+            'openDebits',
+            'openCredits'
         ));
     }
 }
