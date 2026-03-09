@@ -1,86 +1,180 @@
 <x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800">
-            Registrar pagamento
-        </h2>
-    </x-slot>
 
-    <div class="max-w-3xl mx-auto py-6">
-        <form
-            method="POST"
-            action="{{ route('payments.store') }}"
-            class="bg-white p-6 rounded shadow space-y-6"
-        >
-            @csrf
+<div class="mt-12 pb-20 px-6">
 
-            <p class="text-sm text-gray-600">
-                Pagamento entre você e
-                <strong>{{ $partner->name }}</strong>
-            </p>
+<div class="mx-auto max-w-xl space-y-6">
 
-            {{-- VALOR --}}
-            <div>
-                <label class="block text-sm font-medium mb-1">
-                    Valor do pagamento
-                </label>
-                <input
-                    type="number"
-                    name="amount"
-                    step="0.01"
-                    min="0.01"
-                    required
-                    class="w-full border rounded px-3 py-2"
-                >
-            </div>
+<h1 class="text-3xl font-bold text-black dark:text-white">
+Registrar pagamento
+</h1>
 
-            {{-- DÉBITOS EM ABERTO (VISUAL) --}}
-            <div>
-                <p class="font-semibold mb-2">
-                    Dívidas em aberto (informativo)
-                </p>
+<form
+method="POST"
+action="{{ route('payments.store') }}"
+class="
+bg-white dark:bg-black
+border border-gray-200 dark:border-gray-800
+rounded-3xl
+p-8
+space-y-6
+"
+>
 
-                @if ($openDebits->isEmpty())
-                    <p class="text-sm text-gray-600">
-                        Nenhuma dívida em aberto 🎉
-                    </p>
-                @else
-                    <ul class="space-y-1 text-sm">
-                        @foreach ($openDebits as $debit)
-                            <li class="flex justify-between">
-                                <span>
-                                    {{ $debit->description ?? 'Despesa' }}
-                                </span>
-                                <span>
-                                    R$
-                                    {{ number_format($debit->amount - $debit->used_amount, 2, ',', '.') }}
-                                </span>
-                            </li>
-                        @endforeach
-                    </ul>
+@csrf
 
-                    <p class="mt-2 text-sm text-gray-700">
-                        Total em aberto:
-                        <strong>
-                            R$ {{ number_format($openDebits->sum(fn($d) => $d->amount - $d->used_amount), 2, ',', '.') }}
-                        </strong>
-                    </p>
-                @endif
-            </div>
+<p class="text-sm text-gray-500">
+Pagamento entre você e
+<strong class="text-black dark:text-white">
+{{ $partner->name }}
+</strong>
+</p>
 
-            {{-- AVISO IMPORTANTE --}}
-            <div class="bg-blue-50 p-3 rounded text-sm text-blue-800">
-                O valor pago será automaticamente abatido das dívidas mais antigas.
-                Caso o valor seja maior, o saldo vira crédito.
-            </div>
 
-            {{-- BOTÃO --}}
-            <div class="pt-4">
-                <button
-                    class="px-4 py-2 bg-blue-600 text-white rounded"
-                >
-                    Confirmar pagamento
-                </button>
-            </div>
-        </form>
-    </div>
+
+{{-- VALOR --}}
+<div class="space-y-1">
+
+<label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+Valor do pagamento
+</label>
+
+<input
+type="number"
+name="amount"
+step="0.01"
+min="0.01"
+required
+class="
+w-full
+rounded-xl
+border border-gray-300
+dark:border-gray-700
+bg-white dark:bg-black
+px-4 py-2
+focus:ring-2 focus:ring-black
+dark:focus:ring-white
+outline-none
+"
+>
+
+</div>
+
+
+
+{{-- DÉBITOS EM ABERTO --}}
+<div class="
+bg-gray-50 dark:bg-gray-900
+border border-gray-200 dark:border-gray-800
+rounded-2xl
+p-5
+space-y-3
+">
+
+<p class="font-semibold text-black dark:text-white">
+Dívidas em aberto
+</p>
+
+@if ($openDebits->isEmpty())
+
+<p class="text-sm text-gray-500">
+Nenhuma dívida em aberto!
+</p>
+
+@else
+
+<div class="space-y-2">
+
+@foreach ($openDebits as $debit)
+
+<div class="flex justify-between text-sm">
+
+<span class="text-gray-700 dark:text-gray-300">
+{{ $debit->description ?? 'Despesa' }}
+</span>
+
+<strong>
+R$ {{ number_format($debit->amount - $debit->used_amount, 2, ',', '.') }}
+</strong>
+
+</div>
+
+@endforeach
+
+</div>
+
+
+<div class="
+border-t border-gray-200 dark:border-gray-800
+pt-3
+flex justify-between
+text-sm
+">
+
+<span class="text-gray-600">
+Total em aberto
+</span>
+
+<strong class="text-black dark:text-white">
+
+R$
+{{ number_format(
+$openDebits->sum(fn($d) => $d->amount - $d->used_amount),
+2, ',', '.'
+) }}
+
+</strong>
+
+</div>
+
+@endif
+
+</div>
+
+
+
+{{-- AVISO --}}
+<div class="
+bg-blue-50 dark:bg-blue-900/30
+border border-blue-200 dark:border-blue-900
+rounded-2xl
+p-4
+text-sm
+text-blue-800 dark:text-blue-200
+">
+
+O valor pago será automaticamente abatido das dívidas mais antigas.
+Caso o valor seja maior, o saldo vira crédito.
+
+</div>
+
+
+
+{{-- BOTÃO --}}
+<div class="pt-2">
+
+<button
+class="
+w-full
+py-3
+rounded-full
+font-semibold
+bg-black text-white
+dark:bg-white dark:text-black
+hover:opacity-90
+transition
+"
+>
+
+Confirmar pagamento
+
+</button>
+
+</div>
+
+</form>
+
+</div>
+
+</div>
+
 </x-app-layout>

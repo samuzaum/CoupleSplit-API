@@ -23,7 +23,6 @@ class PaymentController extends Controller
             ->where('users.id', '!=', $user->id)
             ->firstOrFail();
 
-        // débitos abertos DO USUÁRIO
         $openDebits = Balance::where('user_id', $user->id)
             ->where('related_user_id', $partner->id)
             ->where('type', 'debit')
@@ -31,11 +30,12 @@ class PaymentController extends Controller
             ->orderBy('created_at')
             ->get();
 
-        return view('payments.create', compact(
-            'partner'    => $partner,
-            'openDebits' => $openDebits,
-        ));
+        return view('payments.create', [
+            'partner' => $partner,
+            'openDebits' => $openDebits
+        ]);
     }
+
 
     /* =========================
      * STORE (REGRA DE NEGÓCIO)
@@ -43,11 +43,11 @@ class PaymentController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'amount'   => 'required|numeric|min:0.01',
-            'balances' => 'array',
+            'amount' => 'required|numeric|min:0.01',
         ]);
 
         DB::transaction(function () use ($request) {
+
             $user   = Auth::user();
             $couple = $user->couples()->firstOrFail();
 
@@ -57,7 +57,9 @@ class PaymentController extends Controller
 
             $remaining = $request->amount;
 
-            // 1️⃣ registra o pagamento (histórico)
+            /* =========================
+             * 1️⃣ REGISTRA PAGAMENTO
+             * ========================= */
             $payment = Payment::create([
                 'couple_id'     => $couple->id,
                 'from_user_id'  => $user->id,
@@ -66,35 +68,60 @@ class PaymentController extends Controller
                 'payment_date'  => Carbon::now(),
             ]);
 
-            // 2️⃣ consome débitos selecionados (ou todos)
-            $debits = Balance::where('user_id', $user->id)
-                ->where('related_user_id', $partner->id)
+
+            /* =========================
+             * 2️⃣ BUSCA DÉBITOS DO PARCEIRO
+             * ========================= */
+            $debits = Balance::where('user_id', $partner->id)
+                ->where('related_user_id', $user->id)
                 ->where('type', 'debit')
                 ->whereColumn('used_amount', '<', 'amount')
-                ->when(
-                    $request->filled('balances'),
-                    fn ($q) => $q->whereIn('id', $request->balances)
-                )
                 ->orderBy('created_at')
                 ->lockForUpdate()
                 ->get();
 
+
+            /* =========================
+             * 3️⃣ CONSOME DÉBITOS E CRÉDITOS DA MESMA DESPESA
+             * ========================= */
             foreach ($debits as $debit) {
-                if ($remaining <= 0) break;
+
+                if ($remaining <= 0) {
+                    break;
+                }
 
                 $available = $debit->amount - $debit->used_amount;
-                $consume   = min($available, $remaining);
 
+                $consume = min($available, $remaining);
+
+                // consome débito
                 $debit->increment('used_amount', $consume);
+
+                // busca crédito da MESMA despesa
+                $credit = Balance::where('origin', 'expense')
+                    ->where('origin_id', $debit->origin_id)
+                    ->where('user_id', $user->id)
+                    ->where('type', 'credit')
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($credit) {
+                    $credit->increment('used_amount', $consume);
+                }
+
                 $remaining -= $consume;
             }
 
-            // 3️⃣ sobrou dinheiro → vira crédito
+
+            /* =========================
+             * 4️⃣ SE SOBRAR DINHEIRO
+             * ========================= */
             if ($remaining > 0) {
+
                 Balance::create([
                     'couple_id'       => $couple->id,
-                    'user_id'         => $partner->id,
-                    'related_user_id' => $user->id,
+                    'user_id'         => $user->id,
+                    'related_user_id' => $partner->id,
                     'amount'          => $remaining,
                     'used_amount'     => 0,
                     'type'            => 'credit',
@@ -103,6 +130,7 @@ class PaymentController extends Controller
                     'origin_id'       => $payment->id,
                 ]);
             }
+
         });
 
         return redirect()

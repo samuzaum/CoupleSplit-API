@@ -1,71 +1,167 @@
 <x-app-layout>
-    <h1 class="text-xl font-bold mb-4">Despesas</h1>
-    <div class="mb-4 border-b border-gray-200">
-    <nav class="-mb-px flex space-x-6">
 
-        <a href="{{ route('expenses.index') }}"
-           class="pb-2 border-b-2 text-sm font-medium
-           {{ $context === 'all' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700' }}">
-            Todas
-        </a>
+<div class="mt-12 pb-20 px-6">
 
-        <a href="{{ route('expenses.couple') }}"
-           class="pb-2 border-b-2 text-sm font-medium
-           {{ $context === 'couple' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700' }}">
-            Casal
-        </a>
+<div class="mx-auto max-w-3xl space-y-6">
+{{-- ======================
+FILTROS
+====================== --}}
+<div class="
+border-b border-gray-200 dark:border-gray-800
+flex gap-6
+text-sm
+">
 
-        <a href="{{ route('expenses.personal') }}"
-           class="pb-2 border-b-2 text-sm font-medium
-           {{ $context === 'personal' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700' }}">
-            Pessoal
-        </a>
+<a href="{{ route('expenses.index') }}"
+class="pb-2 border-b-2 font-medium
+{{ $context === 'all'
+? 'border-black dark:border-white text-black dark:text-white'
+: 'border-transparent text-gray-500 hover:text-black dark:hover:text-white' }}">
 
-    </nav>
+Todas
+
+</a>
+
+<a href="{{ route('expenses.couple') }}"
+class="pb-2 border-b-2 font-medium
+{{ $context === 'couple'
+? 'border-black dark:border-white text-black dark:text-white'
+: 'border-transparent text-gray-500 hover:text-black dark:hover:text-white' }}">
+
+Casal
+
+</a>
+
+<a href="{{ route('expenses.personal') }}"
+class="pb-2 border-b-2 font-medium
+{{ $context === 'personal'
+? 'border-black dark:border-white text-black dark:text-white'
+: 'border-transparent text-gray-500 hover:text-black dark:hover:text-white' }}">
+
+Pessoal
+
+</a>
+
 </div>
-    <div class="mb-4">
-        <a href="{{ route('expenses.create') }}"
-           class="inline-block px-4 py-2 bg-blue-600 text-white rounded">
-             Nova despesa
-        </a>
-    </div>
 
-    @if($expenses->isEmpty())
-        <p>Nenhuma despesa registrada ainda.</p>
-    @else
-        <table class="w-full border-collapse bg-white rounded shadow">
-            <thead>
-                <tr class="border-b">
-                    <th class="p-2 text-left">Descrição</th>
-                    <th class="p-2">Valor</th>
-                    <th class="p-2">Data</th>
-                    <th class="p-2">Tipo</th>
-                    <th class="p-2">Pago por</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($expenses as $expense)
-                    <tr class="border-b hover:bg-gray-50">
-                        <td class="p-2">{{ $expense->description }}</td>
-                        <td class="p-2 text-center">
-                            R$ {{ number_format($expense->amount, 2, ',', '.') }}
-                        </td>
-                        <td class="p-2 text-center">
-                            {{ $expense->expense_date->format('d/m/Y') }}
-                        </td>
-                        <td class="p-2 text-center">
-                            {{ $expense->is_shared ? 'Compartilhada' : 'Pessoal' }}
-                        </td>
-                        <td class="p-2 text-center">
-                            {{ $expense->payer->name }}
-                        </td>
-                    </tr>
-                @endforeach
-            </tbody>
-        </table>
-        <div class="mb-4 text-gray-700">
-            <strong>Total:</strong>
-            R$ {{ number_format($total, 2, ',', '.') }}
-        </div>
-    @endif
+
+
+{{-- ======================
+BOTÃO NOVA DESPESA
+====================== --}}
+<div>
+
+<a href="{{ route('expenses.create') }}"
+class="
+inline-block
+px-5 py-2
+rounded-full
+bg-black text-white
+dark:bg-white dark:text-black
+font-semibold
+">
+
+Nova despesa
+
+</a>
+
+</div>
+
+
+
+{{-- ======================
+LISTAGEM
+====================== --}}
+@if($expenses->isEmpty())
+
+<div class="
+bg-white dark:bg-black
+border border-gray-200 dark:border-gray-800
+rounded-3xl
+p-8
+text-center
+">
+
+<p class="text-gray-500">
+Nenhuma despesa registrada ainda
+</p>
+
+</div>
+
+@else
+
+
+<div class="space-y-3">
+
+@foreach($expenses as $expense)
+
+<div class="
+bg-white dark:bg-black
+border border-gray-200 dark:border-gray-800
+rounded-2xl
+p-5
+flex justify-between items-center
+">
+
+<div>
+
+<p class="font-medium text-black dark:text-white">
+{{ $expense->description }}
+</p>
+
+<p class="text-xs text-gray-500">
+
+{{ $expense->expense_date->format('d/m/Y') }}
+
+• {{ $expense->is_shared ? 'Compartilhada' : 'Pessoal' }}
+
+• {{ $expense->payer->name }}
+
+</p>
+
+</div>
+
+
+<strong class="text-lg">
+
+R$ {{ number_format($expense->amount,2,',','.') }}
+
+</strong>
+
+</div>
+
+@endforeach
+
+</div>
+
+
+{{-- ======================
+TOTAL
+====================== --}}
+<div class="
+bg-white dark:bg-black
+border border-gray-200 dark:border-gray-800
+rounded-3xl
+p-6
+text-right
+">
+
+<p class="text-sm text-gray-500">
+Total
+</p>
+
+<p class="text-2xl font-bold text-black dark:text-white">
+
+R$ {{ number_format($total,2,',','.') }}
+
+</p>
+
+</div>
+
+@endif
+
+</div>
+
+</div>
+
 </x-app-layout>

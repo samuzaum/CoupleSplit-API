@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
 
             $table->foreignId('couple_id')->constrained()->cascadeOnDelete();
-            $table->string('email');
+            $table->string('email')->nullable();
             $table->string('token')->unique();
             $table->timestamp('accepted_at')->nullable();
 

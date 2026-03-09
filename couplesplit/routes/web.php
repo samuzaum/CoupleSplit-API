@@ -34,7 +34,11 @@ Route::middleware(['auth'])->group(function () {
     ->name('dashboard');
     Route::post('/debts/settle', [DashboardController::class, 'settle'])
     ->name('debts.settle');
+    Route::get('/couple/join', [CoupleController::class, 'joinForm'])
+    ->name('couple.join.form');
 
+    Route::post('/couple/join', [CoupleController::class, 'join'])
+        ->name('couple.join');
     /*
     |--------------------------------------------------------------------------
     | Perfil
