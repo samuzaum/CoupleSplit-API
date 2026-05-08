@@ -12,19 +12,30 @@
                 transition-colors duration-200
             ">
 
-                <h1 class="
-                    text-3xl font-bold
-                    text-black dark:text-white
-                    mb-4
-                ">
+@if (!empty($waitingPartner))
+
+                <h1 class="text-3xl font-bold text-black dark:text-white mb-4">
+                    Aguardando seu parceiro(a)
+                </h1>
+
+                <p class="text-gray-600 dark:text-gray-400 text-base leading-relaxed mb-8">
+                    Seu casal foi criado, mas o convite ainda não foi aceito.
+                    Compartilhe o link de convite com seu parceiro(a) para começar.
+                </p>
+
+                <a href="{{ route('couple.show') }}"
+                   class="block text-center px-6 py-3 rounded-full font-semibold
+                          bg-black text-white dark:bg-white dark:text-black hover:opacity-90 transition">
+                    Ver convite
+                </a>
+
+@else
+
+                <h1 class="text-3xl font-bold text-black dark:text-white mb-4">
                     Você ainda não faz parte de um casal
                 </h1>
 
-                <p class="
-                    text-gray-600 dark:text-gray-400
-                    text-base leading-relaxed
-                    mb-8
-                ">
+                <p class="text-gray-600 dark:text-gray-400 text-base leading-relaxed mb-8">
                     Para começar a organizar despesas e acompanhar saldos,
                     é necessário criar um casal ou entrar com um código de convite.
                 </p>
@@ -32,34 +43,21 @@
                 <div class="space-y-4">
 
                     <a href="{{ route('couples.create') }}"
-                       class="
-                           block text-center
-                           px-6 py-3
-                           rounded-full
-                           font-semibold
-                           bg-black text-white
-                           dark:bg-white dark:text-black
-                           hover:opacity-90
-                           transition
-                       ">
+                       class="block text-center px-6 py-3 rounded-full font-semibold
+                              bg-black text-white dark:bg-white dark:text-black hover:opacity-90 transition">
                         Criar casal
                     </a>
 
                     <a href="{{ route('couple.join.form') }}"
-                       class="
-                           block text-center
-                           px-6 py-3
-                           rounded-full
-                           font-semibold
-                           border border-gray-300 dark:border-gray-700
-                           text-black dark:text-white
-                           hover:bg-gray-100 dark:hover:bg-gray-900
-                           transition
-                       ">
+                       class="block text-center px-6 py-3 rounded-full font-semibold
+                              border border-gray-300 dark:border-gray-700 text-black dark:text-white
+                              hover:bg-gray-100 dark:hover:bg-gray-900 transition">
                         Entrar com código
                     </a>
 
                 </div>
+
+@endif
 
             </div>
 

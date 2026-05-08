@@ -28,7 +28,7 @@
             @endisset
 
             <!-- Page Content -->
-            <main class="pt-10">
+            <main class="pt-10 sm:pb-0" style="padding-bottom: env(safe-area-inset-bottom)">
                 {{ $slot }}
             </main>
         </div>

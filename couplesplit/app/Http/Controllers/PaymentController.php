@@ -2,18 +2,18 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Payment;
 use App\Models\Balance;
+use App\Models\Expense;
+use App\Services\ActivityService;
+use App\Services\PaymentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class PaymentController extends Controller
 {
-    /* =========================
-     * CREATE (TELA)
-     * ========================= */
+    public function __construct(private PaymentService $service, private ActivityService $activity) {}
+
     public function create()
     {
         $user   = Auth::user();
@@ -21,7 +21,12 @@ class PaymentController extends Controller
 
         $partner = $couple->users()
             ->where('users.id', '!=', $user->id)
-            ->firstOrFail();
+            ->first();
+
+        if (!$partner) {
+            return redirect()->route('dashboard')
+                ->with('error', 'Seu parceiro(a) ainda não aceitou o convite.');
+        }
 
         $openDebits = Balance::where('user_id', $user->id)
             ->where('related_user_id', $partner->id)
@@ -30,111 +35,58 @@ class PaymentController extends Controller
             ->orderBy('created_at')
             ->get();
 
+        $personalUnpaid = Expense::where('couple_id', $couple->id)
+            ->where('is_shared', false)
+            ->where('paid_by', $user->id)
+            ->whereNull('paid_at')
+            ->orderBy('expense_date')
+            ->get();
+
         return view('payments.create', [
-            'partner' => $partner,
-            'openDebits' => $openDebits
+            'partner'        => $partner,
+            'openDebits'     => $openDebits,
+            'personalUnpaid' => $personalUnpaid,
         ]);
     }
 
-
-    /* =========================
-     * STORE (REGRA DE NEGÓCIO)
-     * ========================= */
     public function store(Request $request)
     {
         $request->validate([
-            'amount' => 'required|numeric|min:0.01',
+            'payment_type' => 'required|in:partner,personal',
+            'amount'       => 'required_if:payment_type,partner|nullable|numeric|min:0.01',
+            'expense_ids'  => 'required_if:payment_type,personal|nullable|array',
+            'expense_ids.*'=> 'exists:expenses,id',
         ]);
 
-        DB::transaction(function () use ($request) {
+        $user    = Auth::user();
+        $couple  = $user->couples()->firstOrFail();
 
-            $user   = Auth::user();
-            $couple = $user->couples()->firstOrFail();
-
-            $partner = $couple->users()
-                ->where('users.id', '!=', $user->id)
-                ->firstOrFail();
-
-            $remaining = $request->amount;
-
-            /* =========================
-             * 1️⃣ REGISTRA PAGAMENTO
-             * ========================= */
-            $payment = Payment::create([
-                'couple_id'     => $couple->id,
-                'from_user_id'  => $user->id,
-                'to_user_id'    => $partner->id,
-                'amount'        => $request->amount,
-                'payment_date'  => Carbon::now(),
-            ]);
-
-
-            /* =========================
-             * 2️⃣ BUSCA DÉBITOS DO PARCEIRO
-             * ========================= */
-            $debits = Balance::where('user_id', $partner->id)
-                ->where('related_user_id', $user->id)
-                ->where('type', 'debit')
-                ->whereColumn('used_amount', '<', 'amount')
-                ->orderBy('created_at')
-                ->lockForUpdate()
-                ->get();
-
-
-            /* =========================
-             * 3️⃣ CONSOME DÉBITOS E CRÉDITOS DA MESMA DESPESA
-             * ========================= */
-            foreach ($debits as $debit) {
-
-                if ($remaining <= 0) {
-                    break;
-                }
-
-                $available = $debit->amount - $debit->used_amount;
-
-                $consume = min($available, $remaining);
-
-                // consome débito
-                $debit->increment('used_amount', $consume);
-
-                // busca crédito da MESMA despesa
-                $credit = Balance::where('origin', 'expense')
-                    ->where('origin_id', $debit->origin_id)
-                    ->where('user_id', $user->id)
-                    ->where('type', 'credit')
-                    ->lockForUpdate()
-                    ->first();
-
-                if ($credit) {
-                    $credit->increment('used_amount', $consume);
-                }
-
-                $remaining -= $consume;
+        if ($request->payment_type === 'partner') {
+            $partner = $couple->users()->where('users.id', '!=', $user->id)->first();
+            if (!$partner) {
+                return redirect()->route('dashboard')
+                    ->with('error', 'Seu parceiro(a) ainda não aceitou o convite.');
             }
+            $this->service->process($user, $couple, $partner, (float) $request->amount);
 
+            $formatted = number_format((float) $request->amount, 2, ',', '.');
+            $this->activity->log($user, $couple->id, 'payment', 'payment', null,
+                "Registrou pagamento de R$ {$formatted} para {$partner->name}");
 
-            /* =========================
-             * 4️⃣ SE SOBRAR DINHEIRO
-             * ========================= */
-            if ($remaining > 0) {
+            return redirect()->route('dashboard')->with('success', 'Pagamento registrado com sucesso!');
+        }
 
-                Balance::create([
-                    'couple_id'       => $couple->id,
-                    'user_id'         => $user->id,
-                    'related_user_id' => $partner->id,
-                    'amount'          => $remaining,
-                    'used_amount'     => 0,
-                    'type'            => 'credit',
-                    'origin'          => 'payment',
-                    'origin_table'    => 'payments',
-                    'origin_id'       => $payment->id,
-                ]);
-            }
+        // personal: marca as despesas selecionadas como pagas
+        $ids = $request->expense_ids ?? [];
+        Expense::whereIn('id', $ids)
+            ->where('couple_id', $couple->id)
+            ->where('paid_by', $user->id)
+            ->where('is_shared', false)
+            ->update(['paid_at' => Carbon::now()]);
 
-        });
+        $this->activity->log($user, $couple->id, 'payment', 'expense', null,
+            "Marcou " . count($ids) . " despesa(s) pessoal(is) como pagas");
 
-        return redirect()
-            ->route('dashboard')
-            ->with('success', 'Pagamento registrado com sucesso!');
+        return redirect()->route('expenses.index')->with('success', 'Despesas pessoais marcadas como pagas!');
     }
 }

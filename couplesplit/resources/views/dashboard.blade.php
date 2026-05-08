@@ -9,6 +9,45 @@ $user = auth()->user();
 $couple = $user->couples()->first();
 @endphp
 
+@if (session('success'))
+<div class="bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 p-4 rounded-xl text-sm">
+{{ session('success') }}
+</div>
+@endif
+
+@if (session('error'))
+<div class="bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 p-4 rounded-xl text-sm">
+{{ session('error') }}
+</div>
+@endif
+
+@php
+$seenCategories = session('budget_notifications_seen', []);
+$unseenExceeded = $exceededBudgets->filter(fn($n) => !in_array($n['category'], $seenCategories));
+@endphp
+
+@if ($unseenExceeded->isNotEmpty())
+<div class="bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-800 rounded-2xl px-5 py-4">
+<div class="flex items-center justify-between gap-4">
+    <a href="{{ route('notifications.index') }}" class="flex-1">
+        <p class="text-sm font-semibold text-red-600 dark:text-red-400">
+            {{ $unseenExceeded->count() }} orçamento{{ $unseenExceeded->count() !== 1 ? 's' : '' }} estourado{{ $unseenExceeded->count() !== 1 ? 's' : '' }} este mês
+        </p>
+        <p class="text-xs text-red-400 mt-0.5">
+            {{ $unseenExceeded->pluck('category')->join(', ') }}
+        </p>
+    </a>
+    <div class="flex items-center gap-3 shrink-0">
+        <a href="{{ route('notifications.index') }}" class="text-xs text-red-500">Ver →</a>
+        <form method="POST" action="{{ route('notifications.dismiss') }}">
+            @csrf
+            <button type="submit" class="text-xs text-red-400 hover:text-red-600">✕</button>
+        </form>
+    </div>
+</div>
+</div>
+@endif
+
 
 
 {{-- ======================
@@ -55,31 +94,56 @@ Tudo certo entre vocês
 @endif
 
 
-<div class="flex justify-center gap-3 mt-6">
+<div class="flex justify-center gap-8 mt-6 text-sm flex-wrap">
+
+<div class="text-center">
+<p class="text-xs uppercase tracking-wide text-gray-400 mb-1">Este mês</p>
+<p class="font-semibold text-black dark:text-white">
+R$ {{ number_format($thisMonthDebit, 2, ',', '.') }}
+</p>
+</div>
+
+<div class="text-center">
+<p class="text-xs uppercase tracking-wide text-gray-400 mb-1">Dívida líquida</p>
+<p class="font-semibold {{ $netBalance < 0 ? 'text-red-500' : 'text-green-600' }}">
+{{ $netBalance >= 0 ? 'R$ 0,00' : 'R$ ' . number_format(abs($netBalance), 2, ',', '.') }}
+</p>
+</div>
+
+@if ($openInstallmentsCount > 0)
+<div class="text-center">
+<p class="text-xs uppercase tracking-wide text-gray-400 mb-1">Parcelas abertas</p>
+<p class="font-semibold text-black dark:text-white">
+{{ $openInstallmentsCount }} parcela{{ $openInstallmentsCount !== 1 ? 's' : '' }}
+</p>
+</div>
+@endif
+
+</div>
+
+<div class="flex justify-center gap-3 mt-4 flex-wrap">
 
 <a href="{{ route('payments.create') }}"
-class="
-px-5 py-2
-rounded-full
-bg-black text-white
-dark:bg-white dark:text-black
-font-semibold
-">
-
+class="px-5 py-2 rounded-full bg-black text-white dark:bg-white dark:text-black font-semibold">
 Registrar pagamento
-
 </a>
 
 <a href="{{ route('expenses.create') }}"
-class="
-px-5 py-2
-rounded-full
-border border-gray-300 dark:border-gray-700
-">
-
+class="px-5 py-2 rounded-full border border-gray-300 dark:border-gray-700">
 Nova despesa
-
 </a>
+
+@if ($netBalance < 0)
+@php $debitFormatted = number_format(abs($netBalance), 2, ',', '.'); @endphp
+<form method="POST" action="{{ route('debts.settle') }}"
+    onsubmit="return confirm('Isso vai quitar sua dívida líquida de R$ {{ $debitFormatted }}. Confirma?')">
+@csrf
+<button type="submit"
+    class="px-5 py-2 rounded-full border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 text-sm">
+    Liquidar tudo
+</button>
+</form>
+@endif
 
 </div>
 
@@ -99,27 +163,49 @@ rounded-3xl
 p-8
 ">
 
-<h3 class="font-semibold mb-3 text-black dark:text-white">
+<div class="flex justify-between items-start mb-4">
+<h3 class="font-semibold text-black dark:text-white">
 {{ $couple->name ?? 'Seu casal' }}
 </h3>
-
-<div class="flex gap-2">
-
-@foreach($couple->users as $member)
-
-<div class="
-px-3 py-1
-rounded-full
-text-sm
-bg-gray-100 dark:bg-gray-900
-">
-
-{{ $member->name }}
-
+<div class="text-right">
+<p class="text-xs text-gray-400 uppercase tracking-wide">Gasto conjunto este mês</p>
+<p class="text-lg font-bold text-black dark:text-white">
+R$ {{ number_format($coupleMonthTotal, 2, ',', '.') }}
+</p>
+@if ($lastMonthTotal > 0)
+@php $deltaSign = $monthDelta >= 0 ? '+' : ''; @endphp
+<p class="text-xs mt-0.5 {{ $monthDelta > 0 ? 'text-red-500' : ($monthDelta < 0 ? 'text-green-600' : 'text-gray-400') }}">
+{{ $deltaSign }}R$ {{ number_format(abs($monthDelta), 2, ',', '.') }} vs mês anterior
+</p>
+@endif
+</div>
 </div>
 
+<div class="grid grid-cols-2 gap-4 mt-2">
+@foreach($couple->users as $member)
+@php $isMe = $member->id === $user->id; @endphp
+<div class="bg-gray-50 dark:bg-gray-900 rounded-2xl p-4">
+<p class="text-sm font-medium text-black dark:text-white">
+{{ $member->name }}
+@if($isMe) <span class="text-xs text-gray-400">(você)</span> @endif
+</p>
+@if($member->monthly_income)
+<p class="text-xs text-gray-500 mt-1">
+R$ {{ number_format($member->monthly_income, 2, ',', '.') }}/mês
+</p>
+@if($myRatio !== null)
+<p class="text-xs font-semibold mt-1 text-black dark:text-white">
+{{ $isMe ? $myRatio : $partnerRatio }}% das despesas
+</p>
+@endif
+@else
+<p class="text-xs text-gray-400 mt-1">
+Renda não informada —
+<a href="{{ route('profile.edit') }}" class="underline">adicionar</a>
+</p>
+@endif
+</div>
 @endforeach
-
 </div>
 
 </div>
@@ -127,6 +213,24 @@ bg-gray-100 dark:bg-gray-900
 @endif
 
 
+
+{{-- ======================
+PRIMEIRA DESPESA (onboarding)
+====================== --}}
+@if ($recentExpenses->isEmpty())
+<div class="
+bg-white dark:bg-black
+border border-gray-200 dark:border-gray-800
+rounded-3xl p-10 text-center
+">
+<p class="text-2xl font-bold text-black dark:text-white mb-2">Bem-vindos ao CoupleSplit!</p>
+<p class="text-sm text-gray-500 mb-6">Nenhuma despesa registrada ainda. Comece adicionando a primeira.</p>
+<a href="{{ route('expenses.create') }}"
+class="inline-block px-6 py-3 rounded-full bg-black text-white dark:bg-white dark:text-black font-semibold">
+Nova despesa
+</a>
+</div>
+@else
 
 {{-- ======================
 DESPESAS RECENTES
@@ -134,166 +238,179 @@ DESPESAS RECENTES
 <div class="
 bg-white dark:bg-black
 border border-gray-200 dark:border-gray-800
-rounded-3xl
-p-8
+rounded-3xl p-8
 ">
-
-<h3 class="font-semibold mb-4 text-black dark:text-white">
-Despesas recentes
-</h3>
-
-@if($recentExpenses->isEmpty())
-
-<p class="text-sm text-gray-500">
-Nenhuma despesa registrada
-</p>
-
-@else
-
+<h3 class="font-semibold mb-4 text-black dark:text-white">Despesas recentes</h3>
 <ul class="space-y-3 text-sm">
-
 @foreach($recentExpenses as $expense)
-
 <li class="flex justify-between">
-
 <div>
-
-<p class="text-black dark:text-white">
-{{ $expense->description }}
-</p>
-
-<p class="text-xs text-gray-500">
-{{ $expense->created_at->format('d/m/Y') }}
-</p>
-
+<p class="text-black dark:text-white">{{ $expense->description }}</p>
+<p class="text-xs text-gray-500">{{ $expense->created_at->format('d/m/Y') }}</p>
 </div>
-
-<strong>
-
-R$ {{ number_format($expense->amount,2,',','.') }}
-
-</strong>
-
+<strong>R$ {{ number_format($expense->amount,2,',','.') }}</strong>
 </li>
-
 @endforeach
-
 </ul>
-
-@endif
-
 </div>
-
-
 
 {{-- ======================
-DÉBITOS
+DÉBITOS / CRÉDITOS
 ====================== --}}
-<div class="
-bg-white dark:bg-black
-border border-gray-200 dark:border-gray-800
-rounded-3xl
-p-8
-">
-
-<h3 class="font-semibold mb-4 text-black dark:text-white">
-Dívidas em aberto
-</h3>
-
-@if ($openDebits->isEmpty())
-
-<p class="text-sm text-gray-500">
-Nenhuma dívida pendente
+@if ($netBalance < 0 && $openDebits->isNotEmpty())
+<div class="bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-3xl p-8">
+<h3 class="font-semibold mb-1 text-black dark:text-white">Dívidas em aberto</h3>
+@if ($creditAvailable > 0)
+<p class="text-xs text-gray-400 mb-4">
+    Já abatendo R$ {{ number_format($creditAvailable, 2, ',', '.') }} em créditos — dívida líquida: R$ {{ number_format(abs($netBalance), 2, ',', '.') }}
 </p>
-
 @else
-
-<ul class="space-y-3 text-sm">
-
-@foreach ($openDebits as $debit)
-
-@php
-$remaining = $debit->amount - $debit->used_amount;
-@endphp
-
-<li class="flex justify-between">
-
-<span>
-{{ $debit->description }}
-</span>
-
-<strong>
-
-R$ {{ number_format($remaining,2,',','.') }}
-
-</strong>
-
-</li>
-
-@endforeach
-
-</ul>
-
+<div class="mb-4"></div>
 @endif
-
+<ul class="space-y-3 text-sm">
+@foreach ($openDebits as $debit)
+@php $remaining = $debit->amount - $debit->used_amount; @endphp
+<li class="flex justify-between">
+<span>{{ $debit->description }}</span>
+<strong>R$ {{ number_format($remaining,2,',','.') }}</strong>
+</li>
+@endforeach
+</ul>
 </div>
-
-
+@elseif ($netBalance > 0 && $openCredits->isNotEmpty())
+<div class="bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-3xl p-8">
+<h3 class="font-semibold mb-4 text-black dark:text-white">A receber de {{ $partner->name }}</h3>
+<ul class="space-y-3 text-sm">
+@foreach ($openCredits as $credit)
+@php $remaining = $credit->amount - $credit->used_amount; @endphp
+<li class="flex justify-between">
+<span>{{ $credit->description }}</span>
+<strong class="text-green-600">R$ {{ number_format($remaining,2,',','.') }}</strong>
+</li>
+@endforeach
+</ul>
+</div>
+@endif
 
 {{-- ======================
 CRÉDITOS
 ====================== --}}
+@if ($openCredits->isNotEmpty())
 <div class="
 bg-white dark:bg-black
 border border-gray-200 dark:border-gray-800
-rounded-3xl
-p-8
+rounded-3xl p-8
 ">
-
-<h3 class="font-semibold mb-4 text-black dark:text-white">
-Créditos a receber
-</h3>
-
-@if ($openCredits->isEmpty())
-
-<p class="text-sm text-gray-500">
-Nenhum crédito pendente
-</p>
-
-@else
-
+<h3 class="font-semibold mb-4 text-black dark:text-white">Créditos a receber</h3>
 <ul class="space-y-3 text-sm">
-
 @foreach ($openCredits as $credit)
-
-@php
-$remaining = $credit->amount - $credit->used_amount;
-@endphp
-
+@php $remaining = $credit->amount - $credit->used_amount; @endphp
 <li class="flex justify-between">
-
-<span>
-{{ $credit->description }}
-</span>
-
-<strong class="text-green-600">
-
-R$ {{ number_format($remaining,2,',','.') }}
-
-</strong>
-
+<span>{{ $credit->description }}</span>
+<strong class="text-green-600">R$ {{ number_format($remaining,2,',','.') }}</strong>
 </li>
-
 @endforeach
-
 </ul>
+</div>
+@endif
+
+{{-- ======================
+ORÇAMENTOS
+====================== --}}
+@if ($budgets->isNotEmpty())
+<div class="
+bg-white dark:bg-black
+border border-gray-200 dark:border-gray-800
+rounded-3xl p-8
+">
+<h3 class="font-semibold mb-5 text-black dark:text-white">Orçamento mensal</h3>
+<div class="space-y-4">
+@foreach ($budgets as $budget)
+@php
+$color = $budget->percentage >= 100 ? 'bg-red-500' : ($budget->percentage >= 75 ? 'bg-yellow-400' : 'bg-green-500');
+@endphp
+<div>
+    <div class="flex justify-between text-sm mb-1">
+        <span class="font-medium text-black dark:text-white">{{ $budget->category }}</span>
+        <span class="text-gray-500">
+            R$ {{ number_format($budget->spent, 2, ',', '.') }}
+            de R$ {{ number_format($budget->amount, 2, ',', '.') }}
+            ({{ $budget->percentage }}%)
+        </span>
+    </div>
+    <div class="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2">
+        <div class="{{ $color }} h-2 rounded-full transition-all" style="width: {{ $budget->percentage }}%"></div>
+    </div>
+</div>
+@endforeach
+</div>
+</div>
+@endif
+
+{{-- ======================
+GRÁFICOS
+====================== --}}
+@if ($byMonth->sum() > 0)
+<div class="
+bg-white dark:bg-black
+border border-gray-200 dark:border-gray-800
+rounded-3xl p-8
+">
+<h3 class="font-semibold mb-6 text-black dark:text-white">Gastos por mês</h3>
+<canvas id="chartByMonth" height="100"></canvas>
+</div>
+@endif
+
+@if ($byCategory->isNotEmpty())
+<div class="
+bg-white dark:bg-black
+border border-gray-200 dark:border-gray-800
+rounded-3xl p-8
+">
+<h3 class="font-semibold mb-6 text-black dark:text-white">Gastos por categoria</h3>
+<canvas id="chartByCategory" height="120"></canvas>
+</div>
+@endif
 
 @endif
 
-</div>
 
 </div>
 
 </div>
+
+@if ($recentExpenses->isNotEmpty())
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    var monthLabels = @json($byMonth->keys());
+    var monthValues = @json($byMonth->values());
+    var catLabels   = @json($byCategory->keys());
+    var catValues   = @json($byCategory->values());
+
+    if (document.getElementById('chartByMonth')) {
+        new Chart(document.getElementById('chartByMonth'), {
+            type: 'bar',
+            data: {
+                labels: monthLabels,
+                datasets: [{ label: 'Total (R$)', data: monthValues, backgroundColor: 'rgba(0,0,0,0.75)' }]
+            },
+            options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+        });
+    }
+
+    if (document.getElementById('chartByCategory')) {
+        new Chart(document.getElementById('chartByCategory'), {
+            type: 'doughnut',
+            data: {
+                labels: catLabels,
+                datasets: [{ data: catValues, backgroundColor: ['#1a1a1a','#3d3d3d','#5e5e5e','#7f7f7f','#a0a0a0','#c1c1c1','#e2e2e2','#f3f3f3'] }]
+            },
+            options: { plugins: { legend: { position: 'bottom' } } }
+        });
+    }
+})();
+</script>
+@endif
 
 </x-app-layout>

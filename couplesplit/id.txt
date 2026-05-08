@@ -1,2 +1,5 @@
 Double Entry Ledger
 calendario
+parcelamento 
+graficos
+investimento

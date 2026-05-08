@@ -47,6 +47,18 @@
             @endif
         </div>
 
+        <div>
+            <x-input-label for="monthly_income" value="Renda mensal (R$)" />
+            <x-text-input id="monthly_income" name="monthly_income" type="number" step="0.01" min="0"
+                class="mt-1 block w-full"
+                :value="old('monthly_income', $user->monthly_income)"
+                placeholder="Ex: 3500.00" />
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Usada para calcular a divisão proporcional de despesas da casa.
+            </p>
+            <x-input-error class="mt-2" :messages="$errors->get('monthly_income')" />
+        </div>
+
         <div class="flex items-center gap-4">
             <x-primary-button>{{ __('Save') }}</x-primary-button>
 

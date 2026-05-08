@@ -9,7 +9,7 @@ bg-white dark:bg-black
 border border-gray-200 dark:border-gray-800
 rounded-3xl
 shadow-sm
-p-10
+p-6 sm:p-10
 transition-colors
 ">
 
@@ -108,8 +108,34 @@ text-black dark:text-white
 />
 
 
+{{-- categoria --}}
+<select
+name="category"
+class="
+w-full
+px-4 py-3
+rounded-xl
+border border-gray-300 dark:border-gray-700
+bg-white dark:bg-black
+text-black dark:text-white
+">
+<option value="">Categoria (opcional)</option>
+@foreach (\App\Models\Expense::CATEGORIES as $cat)
+<option value="{{ $cat }}" {{ old('category') === $cat ? 'selected' : '' }}>{{ $cat }}</option>
+@endforeach
+@if ($customCats->isNotEmpty())
+<optgroup label="Personalizadas">
+@foreach ($customCats as $cat)
+<option value="{{ $cat }}" {{ old('category') === $cat ? 'selected' : '' }}>{{ $cat }}</option>
+@endforeach
+</optgroup>
+@endif
+</select>
+
+
 {{-- cartão --}}
 <select
+id="card_select"
 name="card_id"
 
 class="
@@ -121,13 +147,13 @@ bg-white dark:bg-black
 text-black dark:text-white
 ">
 
-<option value="">
+<option value="" data-type="">
 Sem cartão (dinheiro / pix)
 </option>
 
 @foreach ($cards as $card)
 
-<option value="{{ $card->id }}">
+<option value="{{ $card->id }}" data-type="{{ $card->type }}">
 
 {{ $card->name }} ({{ ucfirst($card->type) }})
 
@@ -138,27 +164,135 @@ Sem cartão (dinheiro / pix)
 </select>
 
 
+{{-- parcelas (visível só com cartão de crédito) --}}
+<div id="installments_wrapper" style="display:none">
+<input
+id="installments_input"
+name="installments"
+type="number"
+min="1"
+max="48"
+value="{{ old('installments', 1) }}"
+placeholder="Parcelas"
+
+class="
+w-full
+px-4 py-3
+rounded-xl
+border border-gray-300 dark:border-gray-700
+bg-white dark:bg-black
+text-black dark:text-white
+"
+/>
+</div>
+
+<script>
+(function () {
+    var select  = document.getElementById('card_select');
+    var wrapper = document.getElementById('installments_wrapper');
+    var input   = document.getElementById('installments_input');
+
+    function toggle() {
+        var type = select.options[select.selectedIndex].dataset.type;
+        var isCredit = type === 'credit';
+        wrapper.style.display = isCredit ? '' : 'none';
+        if (!isCredit) input.value = 1;
+    }
+
+    select.addEventListener('change', toggle);
+    toggle();
+})();
+</script>
+
+
 <input type="hidden" name="is_shared" value="0">
 
-
-<label class="
-flex items-center gap-3
-text-sm
-text-gray-700 dark:text-gray-300
-">
-
+<label class="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300">
 <input
-type="checkbox"
-name="is_shared"
-value="1"
-{{ old('is_shared', true) ? 'checked' : '' }}
+    type="checkbox"
+    id="is_shared_check"
+    name="is_shared"
+    value="1"
+    {{ old('is_shared', true) ? 'checked' : '' }}
+    class="rounded border-gray-300"
+    onchange="toggleSplitRatio()"
+/>
+Despesa compartilhada
+</label>
 
-class="rounded border-gray-300"
+@if (!$myIncome || !$partnerIncome)
+<div id="income_warning" class="text-xs text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl px-4 py-3">
+    @if (!$myIncome && !$partnerIncome)
+        Nenhum dos dois tem renda cadastrada. O split será 50/50.
+    @elseif (!$myIncome)
+        Você não tem renda cadastrada. O split será 50/50.
+    @else
+        {{ $partner?->name ?? 'Parceiro(a)' }} não tem renda cadastrada. O split será 50/50.
+    @endif
+    <a href="{{ route('profile.edit') }}" class="underline ml-1">Cadastrar renda →</a>
+</div>
+@endif
+
+{{-- split ratio (visível só se compartilhada) --}}
+<div id="split_ratio_wrapper">
+<label class="block text-sm text-gray-700 dark:text-gray-300 mb-1">
+    Sua parte: <span id="ratio_display">50</span>% &nbsp;|&nbsp;
+    {{ $partner?->name ?? 'Parceiro(a)' }}: <span id="ratio_other">50</span>%
+</label>
+<input
+    id="split_ratio_input"
+    name="split_ratio"
+    type="range"
+    min="1"
+    max="99"
+    value="{{ old('split_ratio', 50) }}"
+    oninput="updateRatio(this.value)"
+    class="w-full"
 />
 
-Despesa compartilhada
+@if ($incomeRatio)
+<button type="button" onclick="applyIncomeRatio({{ $incomeRatio }})"
+    class="mt-2 text-xs px-3 py-1 rounded-full border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-black dark:hover:border-white">
+    Usar proporção de renda
+    ({{ $incomeRatio }}% / {{ 100 - $incomeRatio }}%)
+</button>
+@else
+<p class="mt-2 text-xs text-gray-400">
+    Para usar a proporção de renda, cadastre a renda de ambos no
+    <a href="{{ route('profile.edit') }}" class="underline">perfil</a>.
+</p>
+@endif
+</div>
 
+<label class="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300">
+<input
+    type="checkbox"
+    name="is_recurring"
+    value="1"
+    {{ old('is_recurring') ? 'checked' : '' }}
+    class="rounded border-gray-300"
+/>
+Despesa recorrente (repete todo mês)
 </label>
+
+<script>
+function updateRatio(val) {
+    val = parseInt(val);
+    document.getElementById('ratio_display').textContent = val;
+    document.getElementById('ratio_other').textContent   = 100 - val;
+    document.getElementById('split_ratio_input').value   = val;
+}
+function applyIncomeRatio(ratio) {
+    updateRatio(ratio);
+}
+function toggleSplitRatio() {
+    var shared = document.getElementById('is_shared_check').checked;
+    document.getElementById('split_ratio_wrapper').style.display = shared ? '' : 'none';
+    var warn = document.getElementById('income_warning');
+    if (warn) warn.style.display = shared ? '' : 'none';
+}
+toggleSplitRatio();
+</script>
 
 
 <button

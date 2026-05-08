@@ -35,8 +35,8 @@ class Payment extends Model
     {
         return $this->belongsTo(User::class, 'to_user_id');
     }
-    public function paymentSplits(): HasMany
+    public function items(): HasMany
     {
-        return $this->hasMany(PaymentSplit::class);
+        return $this->hasMany(PaymentItem::class);
     }
 }

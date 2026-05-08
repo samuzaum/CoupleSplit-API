@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\CoupleCategory;
 
 class Couple extends Model
 {
@@ -22,5 +23,15 @@ class Couple extends Model
     public function invitations(): HasMany
     {
         return $this->hasMany(CoupleInvitation::class);
+    }
+
+    public function categories(): HasMany
+    {
+        return $this->hasMany(CoupleCategory::class);
+    }
+
+    public function budgets(): HasMany
+    {
+        return $this->hasMany(CoupleBudget::class);
     }
 }
