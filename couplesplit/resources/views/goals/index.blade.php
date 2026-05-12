@@ -18,7 +18,7 @@
 @csrf
 
 @if ($errors->any())
-<div class="bg-red-100 text-red-700 p-3 rounded-xl text-sm">
+<div class="bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 p-3 rounded-xl text-sm">
     <ul class="list-disc list-inside">
         @foreach ($errors->all() as $e) <li>{{ $e }}</li> @endforeach
     </ul>

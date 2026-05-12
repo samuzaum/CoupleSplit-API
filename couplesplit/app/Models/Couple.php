@@ -34,4 +34,14 @@ class Couple extends Model
     {
         return $this->hasMany(CoupleBudget::class);
     }
+
+    public function savingsGoals(): HasMany
+    {
+        return $this->hasMany(SavingsGoal::class);
+    }
+
+    public function activityLogs(): HasMany
+    {
+        return $this->hasMany(ActivityLog::class);
+    }
 }

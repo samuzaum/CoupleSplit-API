@@ -54,7 +54,7 @@ Pagamento entre você e
 @endforeach
 </div>
 <div class="border-t border-gray-200 dark:border-gray-800 pt-3 flex justify-between text-sm">
-    <span class="text-gray-600">Total em aberto</span>
+    <span class="text-gray-600 dark:text-gray-400">Total em aberto</span>
     <strong>R$ {{ number_format($openDebits->sum(fn($d) => $d->amount - $d->used_amount), 2, ',', '.') }}</strong>
 </div>
 @endif

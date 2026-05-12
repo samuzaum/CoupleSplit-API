@@ -8,7 +8,6 @@ use App\Services\PaymentService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Carbon;
 use App\Models\CoupleCategory;
-use App\Models\CoupleBudget;
 use App\Models\ExpenseInstallment;
 use App\Services\NotificationService;
 
@@ -19,7 +18,7 @@ class DashboardController extends Controller
     public function index()
     {
         $user   = Auth::user();
-        $couple = $user->couples()->first();
+        $couple = $user->currentCouple();
 
         if (!$couple) {
             return view('dashboard-no-couple');
@@ -127,14 +126,8 @@ class DashboardController extends Controller
             ->sum('amount');
         $monthDelta = round($coupleMonthTotal - $lastMonthTotal, 2);
 
-        $budgets = $couple->budgets()->get()->map(function ($budget) use ($couple) {
-            $spent = Expense::where('couple_id', $couple->id)
-                ->where('is_shared', true)
-                ->where('category', $budget->category)
-                ->whereYear('expense_date', Carbon::now()->year)
-                ->whereMonth('expense_date', Carbon::now()->month)
-                ->sum('amount');
-
+        $budgets = $couple->budgets()->get()->map(function ($budget) {
+            $spent = $budget->spentThisMonth();
             $budget->spent      = round($spent, 2);
             $budget->percentage = min(100, $budget->amount > 0 ? round($spent / $budget->amount * 100) : 0);
             return $budget;
@@ -177,17 +170,23 @@ class DashboardController extends Controller
     public function settle()
     {
         $user    = Auth::user();
-        $couple  = $user->couples()->firstOrFail();
+        $couple  = $user->currentCoupleOrFail();
         $partner = $couple->users()->where('users.id', '!=', $user->id)->firstOrFail();
 
-        $total = $this->service->totalOpenDebit($user, $partner);
+        // usa dívida líquida (créditos já abatidos dos débitos)
+        $netBalance = Balance::where('user_id', $user->id)
+            ->where('related_user_id', $partner->id)
+            ->get()
+            ->sum(fn($b) => $b->type === 'credit'
+                ? $b->amount - $b->used_amount
+                : -($b->amount - $b->used_amount));
 
-        if ($total <= 0) {
-            return redirect()->route('dashboard')->with('info', 'Nenhuma dívida em aberto.');
+        if ($netBalance >= 0) {
+            return redirect()->route('dashboard')->with('info', 'Você não tem dívida líquida em aberto.');
         }
 
-        $this->service->process($user, $couple, $partner, $total);
+        $this->service->process($user, $couple, $partner, abs($netBalance));
 
-        return redirect()->route('dashboard')->with('success', 'Todas as dívidas foram liquidadas!');
+        return redirect()->route('dashboard')->with('success', 'Dívida liquidada!');
     }
 }

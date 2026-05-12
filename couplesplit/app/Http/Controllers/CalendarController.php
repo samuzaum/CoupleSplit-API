@@ -11,7 +11,7 @@ class CalendarController extends Controller
     public function index(Request $request)
     {
         $user   = Auth::user();
-        $couple = $user->couples()->first();
+        $couple = $user->currentCouple();
 
         if (!$couple) {
             return redirect()->route('dashboard')

@@ -16,7 +16,7 @@ class BudgetController extends Controller
             'amount'   => 'required|numeric|min:1',
         ]);
 
-        $couple = Auth::user()->couples()->firstOrFail();
+        $couple = Auth::user()->currentCoupleOrFail();
 
         $couple->budgets()->updateOrCreate(
             ['category' => $request->category],
@@ -30,7 +30,7 @@ class BudgetController extends Controller
     {
         $request->validate(['amount' => 'required|numeric|min:1']);
 
-        $couple = Auth::user()->couples()->firstOrFail();
+        $couple = Auth::user()->currentCoupleOrFail();
         abort_if($budget->couple_id !== $couple->id, 403);
 
         $budget->update(['amount' => $request->amount]);
@@ -40,7 +40,7 @@ class BudgetController extends Controller
 
     public function destroy(CoupleBudget $budget)
     {
-        $couple = Auth::user()->couples()->firstOrFail();
+        $couple = Auth::user()->currentCoupleOrFail();
         abort_if($budget->couple_id !== $couple->id, 403);
 
         $budget->delete();

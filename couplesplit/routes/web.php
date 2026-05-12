@@ -9,16 +9,15 @@ use App\Http\Controllers\CoupleInvitationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\CalendarController;
-use App\Http\Controllers\ChartsController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\NotificationController;
-use App\Http\Controllers\PaymentHistoryController;
 use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\SummaryController;
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\CalculatorController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\SavingsGoalController;
+use App\Http\Controllers\InstallmentController;
 /*
 |--------------------------------------------------------------------------
 | Página inicial pública
@@ -41,7 +40,6 @@ Route::middleware(['auth'])->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::get('/dashboard', [DashboardController::class, 'index'])
-    ->middleware('auth')
     ->name('dashboard');
     Route::post('/debts/settle', [DashboardController::class, 'settle'])
     ->name('debts.settle');
@@ -142,11 +140,26 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/expenses/{expense}', [ExpenseController::class, 'destroy'])
         ->name('expenses.destroy');
 
+    Route::post('/expenses/{expense}/mark-paid', [ExpenseController::class, 'markPaid'])
+        ->name('expenses.mark-paid');
+
+    Route::post('/expenses/{expense}/mark-unpaid', [ExpenseController::class, 'markUnpaid'])
+        ->name('expenses.mark-unpaid');
+
+    Route::get('/expenses/recurring', [ExpenseController::class, 'recurring'])
+        ->name('expenses.recurring');
+
+    Route::post('/expenses/{expense}/stop-recurring', [ExpenseController::class, 'stopRecurring'])
+        ->name('expenses.stop-recurring');
+
     Route::post('/expenses/{expense}/dispute', [ExpenseController::class, 'dispute'])
         ->name('expenses.dispute');
 
     Route::post('/expenses/{expense}/undispute', [ExpenseController::class, 'undispute'])
         ->name('expenses.undispute');
+
+    Route::get('/installments', [InstallmentController::class, 'index'])
+        ->name('installments.index');
     /*
     |--------------------------------------------------------------------------
     | Pagamentos
@@ -158,10 +171,10 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/payments', [PaymentController::class, 'store'])
         ->name('payments.store');
 
-    Route::get('/payments/history', [PaymentHistoryController::class, 'index'])
+    Route::get('/payments/history', [PaymentController::class, 'index'])
         ->name('payments.history');
 
-    Route::patch('/payments/{payment}', [PaymentHistoryController::class, 'update'])
+    Route::patch('/payments/{payment}', [PaymentController::class, 'update'])
         ->name('payments.update');
 
     /*
@@ -172,8 +185,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/calendar', [CalendarController::class, 'index'])
         ->name('calendar.index');
 
-    Route::get('/charts', [ChartsController::class, 'index'])
-        ->name('charts.index');
+
+    Route::post('/couple/leave', [CoupleController::class, 'leave'])
+        ->name('couple.leave');
 
     Route::post('/categories', [CategoryController::class, 'store'])
         ->name('categories.store');

@@ -7,12 +7,14 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Laravel\Sanctum\HasApiTokens;
 use App\Models\Couple;
 use App\Models\Card;
 use App\Models\Expense;
+
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -22,6 +24,7 @@ class User extends Authenticatable
         'email',
         'password',
         'monthly_income',
+        'notification_dismissals',
     ];
 
     /**
@@ -38,8 +41,9 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            'email_verified_at'        => 'datetime',
+            'password'                 => 'hashed',
+            'notification_dismissals'  => 'array',
         ];
     }
 
@@ -50,6 +54,18 @@ class User extends Authenticatable
     public function couples(): BelongsToMany
     {
         return $this->belongsToMany(Couple::class)->withTimestamps();
+    }
+
+    /** Retorna o casal atual do usuário ou null */
+    public function currentCouple(): ?Couple
+    {
+        return $this->couples()->first();
+    }
+
+    /** Retorna o casal atual ou lança 404 */
+    public function currentCoupleOrFail(): Couple
+    {
+        return $this->couples()->firstOrFail();
     }
 
     public function cards(): HasMany

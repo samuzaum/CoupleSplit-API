@@ -72,6 +72,21 @@ focus:ring-black dark:focus:ring-white
 />
 
 
+{{-- observação --}}
+<textarea
+name="notes"
+placeholder="Observação (opcional) — ex: nota fiscal, restaurante tal..."
+rows="2"
+class="
+w-full
+px-4 py-3
+rounded-xl
+border border-gray-300 dark:border-gray-700
+bg-white dark:bg-black
+text-black dark:text-white
+resize-none
+">{{ old('notes') }}</textarea>
+
 {{-- valor --}}
 <input
 name="amount"

@@ -10,7 +10,7 @@ class ActivityController extends Controller
     public function index()
     {
         $user   = Auth::user();
-        $couple = $user->couples()->first();
+        $couple = $user->currentCouple();
 
         if (!$couple) {
             return redirect()->route('dashboard')->with('error', 'Você ainda não faz parte de um casal.');

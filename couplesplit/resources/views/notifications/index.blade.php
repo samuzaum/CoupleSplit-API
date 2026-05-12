@@ -32,7 +32,7 @@
                 ({{ $n['closing_date']->format('d/m/Y') }})
             </p>
         </div>
-        <div class="text-right shrink-0">
+        <div class="flex items-center gap-3 shrink-0">
             @if ($n['days_until'] === 0)
                 <span class="text-xs font-semibold text-red-500">Hoje</span>
             @elseif ($n['days_until'] === 1)
@@ -40,6 +40,11 @@
             @else
                 <span class="text-xs font-semibold text-yellow-600">em {{ $n['days_until'] }} dias</span>
             @endif
+            <form method="POST" action="{{ route('notifications.dismiss') }}">
+                @csrf
+                <input type="hidden" name="keys[]" value="{{ $n['key'] }}">
+                <button type="submit" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors" title="Dispensar">✕</button>
+            </form>
         </div>
 
         @elseif ($n['type'] === 'budget_exceeded')
@@ -53,7 +58,14 @@
                 · Excesso: R$ {{ number_format($n['overflow'], 2, ',', '.') }}
             </p>
         </div>
-        <span class="text-xs font-semibold text-red-500 shrink-0">Estourado</span>
+        <div class="flex items-center gap-3 shrink-0">
+            <span class="text-xs font-semibold text-red-500">Estourado</span>
+            <form method="POST" action="{{ route('notifications.dismiss') }}">
+                @csrf
+                <input type="hidden" name="keys[]" value="{{ $n['key'] }}">
+                <button type="submit" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors" title="Dispensar">✕</button>
+            </form>
+        </div>
 
         @elseif ($n['type'] === 'budget_warning')
         <div>
@@ -66,7 +78,15 @@
                 · {{ $n['pct'] }}% usado
             </p>
         </div>
-        <span class="text-xs font-semibold text-yellow-600 shrink-0">{{ $n['pct'] }}%</span>
+        <div class="flex items-center gap-3 shrink-0">
+            <span class="text-xs font-semibold text-yellow-600">{{ $n['pct'] }}%</span>
+            <form method="POST" action="{{ route('notifications.dismiss') }}">
+                @csrf
+                <input type="hidden" name="keys[]" value="{{ $n['key'] }}">
+                <button type="submit" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors" title="Dispensar">✕</button>
+            </form>
+        </div>
+
         @elseif ($n['type'] === 'expense_disputed')
         <div>
             <p class="text-sm font-semibold text-orange-600 dark:text-orange-400">

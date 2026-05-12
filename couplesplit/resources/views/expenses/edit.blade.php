@@ -7,7 +7,7 @@ bg-white dark:bg-black
 border border-gray-200 dark:border-gray-800
 rounded-3xl
 shadow-sm
-p-10
+p-6 sm:p-10
 ">
 
 <h1 class="text-3xl font-bold text-black dark:text-white mb-6">
@@ -15,7 +15,7 @@ Editar despesa
 </h1>
 
 @if ($hasPayments)
-<p class="text-sm text-yellow-600 mb-6">
+<p class="text-sm text-yellow-600 dark:text-yellow-400 mb-6">
 Esta despesa já possui pagamentos. Apenas a descrição pode ser alterada.
 </p>
 @endif
@@ -45,6 +45,17 @@ bg-white dark:bg-black text-black dark:text-white
 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white
 "
 />
+
+<textarea
+name="notes"
+placeholder="Observação (opcional)"
+rows="2"
+class="
+w-full px-4 py-3 rounded-xl
+border border-gray-300 dark:border-gray-700
+bg-white dark:bg-black text-black dark:text-white
+resize-none
+">{{ old('notes', $expense->notes) }}</textarea>
 
 @if (!$hasPayments)
 

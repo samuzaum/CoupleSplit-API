@@ -12,7 +12,7 @@ class CategoryController extends Controller
     {
         $request->validate(['name' => 'required|string|max:50']);
 
-        $couple = Auth::user()->couples()->firstOrFail();
+        $couple = Auth::user()->currentCoupleOrFail();
 
         $exists = $couple->categories()->where('name', $request->name)->exists();
         $isDefault = in_array($request->name, \App\Models\Expense::CATEGORIES);
@@ -28,7 +28,7 @@ class CategoryController extends Controller
 
     public function destroy(CoupleCategory $category)
     {
-        $couple = Auth::user()->couples()->firstOrFail();
+        $couple = Auth::user()->currentCoupleOrFail();
         abort_if($category->couple_id !== $couple->id, 403);
 
         $category->delete();

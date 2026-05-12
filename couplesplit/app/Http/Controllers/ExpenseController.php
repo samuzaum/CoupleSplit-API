@@ -20,7 +20,7 @@ class ExpenseController extends Controller
     {
         $user       = Auth::user();
         $cards      = $user->cards;
-        $couple     = $user->couples()->first();
+        $couple     = $user->currentCouple();
         $customCats = $couple ? $couple->categories()->pluck('name') : collect();
 
         $partner        = $couple?->users()->where('users.id', '!=', $user->id)->first();
@@ -39,6 +39,7 @@ class ExpenseController extends Controller
     {
         $request->validate([
             'description'  => 'required|string|max:255',
+            'notes'        => 'nullable|string|max:1000',
             'amount'       => 'required|numeric|min:0.01',
             'expense_date' => 'required|date',
             'card_id'      => 'nullable|exists:cards,id',
@@ -50,7 +51,7 @@ class ExpenseController extends Controller
         ]);
 
         $user   = Auth::user();
-        $couple = $user->couples()->firstOrFail();
+        $couple = $user->currentCoupleOrFail();
 
         $expenseDate = Carbon::parse($request->expense_date);
         $billingDate = $this->service->calculateBillingDate($request->card_id, $expenseDate);
@@ -61,6 +62,7 @@ class ExpenseController extends Controller
             'paid_by'      => $user->id,
             'card_id'      => $request->card_id,
             'description'  => $request->description,
+            'notes'        => $request->notes,
             'category'     => $request->category,
             'amount'       => $request->amount,
             'expense_date' => $expenseDate,
@@ -107,7 +109,7 @@ class ExpenseController extends Controller
     public function edit(Expense $expense)
     {
         $user   = Auth::user();
-        $couple = $user->couples()->firstOrFail();
+        $couple = $user->currentCoupleOrFail();
 
         abort_if($expense->couple_id !== $couple->id, 403);
 
@@ -124,7 +126,7 @@ class ExpenseController extends Controller
     public function update(Request $request, Expense $expense)
     {
         $user   = Auth::user();
-        $couple = $user->couples()->firstOrFail();
+        $couple = $user->currentCoupleOrFail();
 
         abort_if($expense->couple_id !== $couple->id, 403);
 
@@ -134,11 +136,15 @@ class ExpenseController extends Controller
             ->exists();
 
         if ($hasPayments) {
-            $request->validate(['description' => 'required|string|max:255']);
-            $expense->update(['description' => $request->description]);
+            $request->validate([
+                'description' => 'required|string|max:255',
+                'notes'       => 'nullable|string|max:1000',
+            ]);
+            $expense->update(['description' => $request->description, 'notes' => $request->notes]);
         } else {
             $request->validate([
                 'description'  => 'required|string|max:255',
+                'notes'        => 'nullable|string|max:1000',
                 'amount'       => 'required|numeric|min:0.01',
                 'expense_date' => 'required|date',
                 'card_id'      => 'nullable|exists:cards,id',
@@ -158,6 +164,7 @@ class ExpenseController extends Controller
             $expense->update([
                 'card_id'      => $request->card_id,
                 'description'  => $request->description,
+                'notes'        => $request->notes,
                 'category'     => $request->category,
                 'amount'       => $request->amount,
                 'expense_date' => $expenseDate,
@@ -182,7 +189,7 @@ class ExpenseController extends Controller
     public function destroy(Expense $expense)
     {
         $user   = Auth::user();
-        $couple = $user->couples()->firstOrFail();
+        $couple = $user->currentCoupleOrFail();
 
         abort_if($expense->couple_id !== $couple->id, 403);
 
@@ -211,10 +218,70 @@ class ExpenseController extends Controller
             ->with('success', 'Despesa excluída com sucesso!');
     }
 
+    public function markPaid(Expense $expense)
+    {
+        $user   = Auth::user();
+        $couple = $user->currentCoupleOrFail();
+
+        abort_if($expense->couple_id !== $couple->id, 403);
+        abort_if($expense->is_shared, 403);
+        abort_if($expense->paid_by !== $user->id, 403);
+
+        $expense->update(['paid_at' => now()]);
+
+        $this->activity->log($user, $couple->id, 'updated', 'expense', $expense->id,
+            "Marcou \"{$expense->description}\" como paga");
+
+        return back()->with('success', 'Despesa marcada como paga.');
+    }
+
+    public function markUnpaid(Expense $expense)
+    {
+        $user   = Auth::user();
+        $couple = $user->currentCoupleOrFail();
+
+        abort_if($expense->couple_id !== $couple->id, 403);
+        abort_if($expense->is_shared, 403);
+        abort_if($expense->paid_by !== $user->id, 403);
+
+        $expense->update(['paid_at' => null]);
+
+        return back()->with('success', 'Despesa marcada como pendente.');
+    }
+
+    public function recurring()
+    {
+        $user   = Auth::user();
+        $couple = $user->currentCoupleOrFail();
+
+        $templates = Expense::where('couple_id', $couple->id)
+            ->where('is_recurring', true)
+            ->whereNull('parent_id')
+            ->orderByDesc('expense_date')
+            ->get();
+
+        return view('expenses.recurring', compact('templates'));
+    }
+
+    public function stopRecurring(Expense $expense)
+    {
+        $user   = Auth::user();
+        $couple = $user->currentCoupleOrFail();
+
+        abort_if($expense->couple_id !== $couple->id, 403);
+
+        $expense->update(['is_recurring' => false]);
+
+        $this->activity->log($user, $couple->id, 'updated', 'expense', $expense->id,
+            "Cancelou a recorrência de \"{$expense->description}\"");
+
+        return back()->with('success', 'Recorrência cancelada.');
+    }
+
     public function dispute(Expense $expense)
     {
         $user   = Auth::user();
-        $couple = $user->couples()->firstOrFail();
+        $couple = $user->currentCoupleOrFail();
 
         abort_if($expense->couple_id !== $couple->id, 403);
         abort_if($expense->paid_by === $user->id, 403);
@@ -231,7 +298,7 @@ class ExpenseController extends Controller
     public function undispute(Expense $expense)
     {
         $user   = Auth::user();
-        $couple = $user->couples()->firstOrFail();
+        $couple = $user->currentCoupleOrFail();
 
         abort_if($expense->couple_id !== $couple->id, 403);
         abort_if($expense->paid_by === $user->id, 403);
@@ -247,7 +314,7 @@ class ExpenseController extends Controller
     public function index(Request $request)
     {
         $user   = Auth::user();
-        $couple = $user->couples()->first();
+        $couple = $user->currentCouple();
 
         if (!$couple) {
             return redirect()
@@ -275,7 +342,7 @@ class ExpenseController extends Controller
     public function couple(Request $request)
     {
         $user   = Auth::user();
-        $couple = $user->couples()->firstOrFail();
+        $couple = $user->currentCoupleOrFail();
 
         $baseQuery  = $this->applyFilters(Expense::where('couple_id', $couple->id)->where('is_shared', true), $request);
         $total      = $baseQuery->sum('amount');
@@ -297,7 +364,7 @@ class ExpenseController extends Controller
     public function personal(Request $request)
     {
         $user   = Auth::user();
-        $couple = $user->couples()->firstOrFail();
+        $couple = $user->currentCoupleOrFail();
 
         $baseQuery  = $this->applyFilters(
             Expense::where('couple_id', $couple->id)->where('is_shared', false)->where('paid_by', $user->id),

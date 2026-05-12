@@ -19,7 +19,7 @@ class PaymentController extends Controller
         ]);
 
         $user    = Auth::user();
-        $couple  = $user->couples()->firstOrFail();
+        $couple  = $user->currentCoupleOrFail();
         $partner = $couple->users()->where('users.id', '!=', $user->id)->firstOrFail();
 
         $payment = $this->service->process($user, $couple, $partner, (float) $request->amount);

@@ -13,7 +13,7 @@ class CalculatorController extends Controller
     public function index(Request $request)
     {
         $user   = Auth::user();
-        $couple = $user->couples()->firstOrFail();
+        $couple = $user->currentCoupleOrFail();
         $partner = $couple->users()->where('users.id', '!=', $user->id)->first();
 
         $totalIncome = ($user->monthly_income ?? 0) + ($partner?->monthly_income ?? 0);
@@ -51,12 +51,6 @@ class CalculatorController extends Controller
             for ($i = 0; $i < 12; $i++) {
                 $months->push(Carbon::now()->startOfMonth()->addMonths($i));
             }
-
-            // recorrentes (valor fixo todo mês)
-            $recurringTotal = Expense::where('couple_id', $couple->id)
-                ->where('is_recurring', true)
-                ->whereNull('parent_id')
-                ->sum('amount');
 
             // parcelas em andamento não pagas
             $activeInstallments = ExpenseInstallment::whereHas('expense', fn($q) => $q->where('couple_id', $couple->id))

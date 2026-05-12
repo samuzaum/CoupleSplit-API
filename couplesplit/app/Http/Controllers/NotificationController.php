@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\NotificationService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class NotificationController extends Controller
@@ -14,26 +15,22 @@ class NotificationController extends Controller
         $user          = Auth::user();
         $notifications = $this->service->getActive($user);
 
-        // marcar categorias excedidas como vistas na sessão
-        $seenCategories = collect($notifications)
-            ->filter(fn($n) => in_array($n['type'], ['budget_exceeded', 'budget_warning']))
-            ->pluck('category')
-            ->toArray();
-        session(['budget_notifications_seen' => $seenCategories]);
-
         return view('notifications.index', compact('notifications'));
     }
 
-    public function dismiss()
+    public function dismiss(Request $request)
     {
-        $user          = Auth::user();
-        $notifications = $this->service->getActive($user);
+        $keys = $request->input('keys', []);
 
-        $seenCategories = collect($notifications)
-            ->filter(fn($n) => in_array($n['type'], ['budget_exceeded', 'budget_warning']))
-            ->pluck('category')
-            ->toArray();
-        session(['budget_notifications_seen' => $seenCategories]);
+        if (!is_array($keys)) {
+            $keys = [$keys];
+        }
+
+        $keys = array_filter($keys); // remove vazios/nulos
+
+        if (!empty($keys)) {
+            $this->service->dismiss(Auth::user(), $keys);
+        }
 
         return redirect()->back();
     }

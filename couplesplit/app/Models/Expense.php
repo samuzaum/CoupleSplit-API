@@ -24,6 +24,7 @@ class Expense extends Model
         'paid_by',
         'card_id',
         'description',
+        'notes',
         'category',
         'amount',
         'expense_date',
@@ -42,6 +43,7 @@ class Expense extends Model
         'paid_at'      => 'datetime',
         'split_ratio'  => 'float',
         'is_recurring' => 'boolean',
+        'is_shared'    => 'boolean',
     ];
 
 

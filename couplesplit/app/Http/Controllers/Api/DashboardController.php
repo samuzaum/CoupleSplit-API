@@ -16,7 +16,7 @@ class DashboardController extends Controller
     public function index(): JsonResponse
     {
         $user   = Auth::user();
-        $couple = $user->couples()->first();
+        $couple = $user->currentCouple();
 
         if (!$couple) {
             return response()->json(['message' => 'Usuário não faz parte de um casal.'], 422);
@@ -50,7 +50,7 @@ class DashboardController extends Controller
     public function settle(): JsonResponse
     {
         $user    = Auth::user();
-        $couple  = $user->couples()->firstOrFail();
+        $couple  = $user->currentCoupleOrFail();
         $partner = $couple->users()->where('users.id', '!=', $user->id)->firstOrFail();
 
         $total = $this->service->totalOpenDebit($user, $partner);

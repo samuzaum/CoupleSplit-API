@@ -47,6 +47,41 @@ class CoupleController extends Controller
     | Tela para inserir código de convite
     |--------------------------------------
     */
+    public function show()
+    {
+        $user   = Auth::user();
+        $couple = $user->currentCouple();
+
+        if (!$couple) {
+            return redirect()->route('dashboard');
+        }
+
+        $partner = $couple->users()->where('users.id', '!=', $user->id)->first();
+
+        return view('couples.show', compact('couple', 'partner'));
+    }
+
+    public function leave()
+    {
+        $user   = Auth::user();
+        $couple = $user->currentCouple();
+
+        if (!$couple) {
+            return redirect()->route('dashboard');
+        }
+
+        // desvincula o usuário
+        $couple->users()->detach($user->id);
+
+        // se não sobrou ninguém, deleta o casal
+        if ($couple->users()->count() === 0) {
+            $couple->delete();
+        }
+
+        return redirect()->route('dashboard')
+            ->with('success', 'Você saiu do casal.');
+    }
+
     public function joinForm()
     {
         return view('couples.join');

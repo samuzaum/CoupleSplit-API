@@ -1,32 +1,103 @@
-# CoupleSplit
+<div align="center">
 
-Sistema de gestão financeira para casais — divida despesas, acompanhe dívidas e registre pagamentos entre parceiros.
+# 💑 CoupleSplit
+
+**Gestão financeira inteligente para casais**
+
+Divida despesas, acompanhe dívidas, defina metas e mantenha as finanças do casal sempre organizadas.
+
+[![PHP](https://img.shields.io/badge/PHP-8.2+-777BB4?style=flat-square&logo=php&logoColor=white)](https://php.net)
+[![Laravel](https://img.shields.io/badge/Laravel-12-FF2D20?style=flat-square&logo=laravel&logoColor=white)](https://laravel.com)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+
+</div>
 
 ---
 
-## Requisitos
+## Sobre o projeto
+
+O CoupleSplit nasceu de uma necessidade real: casais que dividem despesas precisam de uma forma simples e transparente de saber quem deve quanto — sem planilhas, sem discussões.
+
+O sistema registra despesas compartilhadas e pessoais, calcula automaticamente o saldo líquido entre parceiros, gerencia parcelas de cartão de crédito e ainda oferece ferramentas de planejamento como metas de economia, orçamentos por categoria e simulador de compras.
+
+---
+
+## Funcionalidades
+
+### Financeiro
+- **Saldo em tempo real** — o dashboard mostra exatamente quem deve quanto para quem
+- **Despesas compartilhadas** — divisão configurável (50/50, proporcional à renda ou personalizada)
+- **Despesas pessoais** — cada um acompanha seus próprios gastos
+- **Pagamentos com amortização** — valores pagos são abatidos nas dívidas mais antigas primeiro; excedente vira crédito
+- **Liquidação total** — quite todas as dívidas em aberto com um clique
+
+### Cartões e Parcelas
+- **Cartões de débito e crédito** — cadastre seus cartões com dia de fechamento de fatura
+- **Parcelamento automático** — divida uma compra em até 48x; o sistema distribui cada parcela no mês correto
+- **Painel de parcelas abertas** — visualize tudo que ainda está em aberto por mês de vencimento
+
+### Planejamento
+- **Orçamentos por categoria** — defina limites mensais e receba alertas ao se aproximar ou estourar
+- **Metas de economia** — crie objetivos com valor-alvo, prazo e progresso visual
+- **Simulador de compras** — simule o impacto de uma compra parcelada nos próximos meses com base na renda do casal
+- **Despesas recorrentes** — marque uma despesa como recorrente e ela é gerada automaticamente todo mês
+
+### Visualização
+- **Calendário financeiro** — veja despesas e vencimentos organizados por dia
+- **Resumo mensal** — totais por categoria, por pagador e comparativo com o mês anterior
+- **Gráficos** — gastos mensais (barras) e por categoria (donut)
+- **Log de atividades** — histórico de todas as ações do casal
+
+### Sistema
+- **Dark mode** — com detecção automática do tema do sistema operacional
+- **Notificações persistentes** — alertas de fechamento de fatura e orçamentos estourados
+- **Exportação CSV** — exporte despesas e pagamentos filtrados
+- **API REST** — endpoints autenticados via Laravel Sanctum para integração externa
+- **Categorias personalizadas** — além das categorias padrão, crie as suas
+
+---
+
+## Tecnologias
+
+| Camada | Tecnologia |
+|---|---|
+| Backend | PHP 8.2, Laravel 12 |
+| Frontend | Blade, Tailwind CSS v3, Alpine.js |
+| Banco de dados | MySQL / SQLite |
+| Autenticação | Laravel Breeze + Sanctum |
+| Build | Vite |
+| Gráficos | Chart.js |
+
+---
+
+## Pré-requisitos
 
 - PHP 8.2+
 - Composer
+- Node.js 18+
 - MySQL ou SQLite
-- Node.js (para assets)
 
 ---
 
 ## Instalação
 
 ```bash
+# 1. Clone o repositório
 git clone https://github.com/samuzaum/CoupleSplit-API.git
 cd CoupleSplit-API/couplesplit
 
+# 2. Instale as dependências
 composer install
 npm install && npm run build
 
+# 3. Configure o ambiente
 cp .env.example .env
 php artisan key:generate
 ```
 
 Configure o banco no `.env`:
+
 ```env
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
@@ -37,115 +108,61 @@ DB_PASSWORD=
 ```
 
 ```bash
+# 4. Execute as migrations
 php artisan migrate
+
+# 5. Inicie o servidor
 php artisan serve
 ```
 
-Acesse: `http://localhost:8000`
+Acesse: [http://localhost:8000](http://localhost:8000)
 
 ---
 
 ## Como usar
 
-### 1. Criar conta
+### 1. Criar conta e casal
 
-Acesse `/register` e crie sua conta com nome, e-mail e senha.
+Registre-se em `/register`. Após o login, você pode:
 
----
+- **Criar um casal** — dê um nome e compartilhe o token gerado com seu parceiro
+- **Entrar num casal** — insira o token recebido em `/couple/join`
+- **Convidar por e-mail** — envie um link de convite diretamente pelo painel do casal
 
-### 2. Criar ou entrar em um casal
+### 2. Registrar despesas
 
-Após o login você será redirecionado ao dashboard. Se ainda não faz parte de um casal, duas opções aparecem:
+Em `/expenses/create`, informe descrição, valor, data e:
 
-**Criar um casal**
-- Acesse `/couples/create`
-- Dê um nome ao casal (ex: "Samuel & Evelyn")
-- Um token de 6 caracteres é gerado automaticamente
+- **Compartilhada** → divide com o parceiro (ratio configurável)
+- **Pessoal** → só sua
+- **Com cartão de crédito** → informe as parcelas; o sistema calcula o mês de faturamento de cada uma
 
-**Entrar em um casal existente**
-- Acesse `/couple/join`
-- Insira o token compartilhado pelo seu parceiro
+### 3. Acompanhar o saldo
 
-**Convidar por e-mail**
-- No painel do casal, use a opção de convite por e-mail
-- O parceiro recebe um link único para entrar
+O dashboard mostra em tempo real:
+- Saldo líquido (quem deve quanto)
+- Dívidas em aberto detalhadas
+- Despesas recentes
+- Progresso dos orçamentos mensais
 
----
+### 4. Registrar pagamentos
 
-### 3. Cadastrar cartões (opcional)
-
-Acesse `/cards` → **Novo cartão**
-
-- **Débito**: o valor é contabilizado na data da compra
-- **Crédito**: informe o dia de fechamento da fatura — o sistema calcula automaticamente em qual mês a despesa será cobrada
-
----
-
-### 4. Registrar despesas
-
-Acesse `/expenses/create` e preencha:
-
-| Campo | Descrição |
-|---|---|
-| Descrição | Nome da despesa (ex: "Mercado") |
-| Valor | Valor total pago |
-| Data | Data em que ocorreu |
-| Parcelas | 1 = à vista, 2+ = parcelado (máx 48x) |
-| Cartão | Opcional — define a data de faturamento |
-| Compartilhada | Marcado = divide com o parceiro, desmarcado = pessoal |
-
-Despesas compartilhadas dividem o valor automaticamente entre os dois e geram os registros de débito/crédito.
-
----
-
-### 5. Acompanhar o saldo — Dashboard
-
-Acesse `/dashboard` para ver:
-
-- **Saldo líquido** — quem deve quanto para quem no momento
-- **Dívidas em aberto** — suas despesas pendentes de pagamento
-- **Créditos a receber** — o que seu parceiro ainda te deve
-- **Despesas recentes** — últimas 5 despesas do casal
-
----
-
-### 6. Registrar pagamentos
-
-Quando você quitar uma dívida com o parceiro:
-
-- Acesse `/payments/create`
-- Veja suas dívidas em aberto listadas
-- Informe o valor pago
-- O sistema consome os débitos em ordem cronológica (mais antigos primeiro)
-- Se pagar mais do que deve, o excedente vira crédito a seu favor
-
-**Liquidar tudo de uma vez:**
-No dashboard, use o botão de liquidar para quitar todas as dívidas abertas automaticamente.
-
----
-
-### 7. Ver histórico de despesas
-
-| Rota | O que mostra |
-|---|---|
-| `/expenses` | Todas as despesas do casal |
-| `/expenses/couple` | Apenas despesas compartilhadas |
-| `/expenses/personal` | Apenas suas despesas pessoais |
+Em `/payments/create`, informe o valor pago. O sistema amortiza automaticamente as dívidas mais antigas. Se pagar a mais, o excedente vira crédito.
 
 ---
 
 ## API REST
 
-A API usa autenticação via token (Laravel Sanctum). Para gerar um token, use o fluxo de login via Sanctum.
-
 Base URL: `http://localhost:8000/api`
+
+Autenticação via Bearer Token (Laravel Sanctum).
 
 | Método | Endpoint | Descrição |
 |---|---|---|
 | GET | `/dashboard` | Saldo, dívidas e despesas recentes |
-| POST | `/dashboard/settle` | Liquidar todas as dívidas de uma vez |
-| GET | `/expenses` | Listar despesas do casal |
-| POST | `/expenses` | Criar nova despesa |
+| POST | `/dashboard/settle` | Liquidar todas as dívidas |
+| GET | `/expenses` | Listar despesas |
+| POST | `/expenses` | Criar despesa |
 | POST | `/payments` | Registrar pagamento |
 
 **Exemplo — criar despesa:**
@@ -158,6 +175,7 @@ Authorization: Bearer {token}
   "amount": 250.00,
   "expense_date": "2026-05-07",
   "is_shared": true,
+  "split_ratio": 0.5,
   "installments": 1
 }
 ```
@@ -174,24 +192,60 @@ Authorization: Bearer {token}
 
 ---
 
-## Estrutura resumida
+## Estrutura do projeto
 
 ```
 app/
 ├── Http/Controllers/
-│   ├── Api/               # Controllers da API REST
-│   ├── ExpenseController  # Despesas
-│   ├── PaymentController  # Pagamentos
-│   ├── DashboardController
-│   ├── CoupleController
-│   └── CardController
+│   ├── Api/                    # Controllers da API REST
+│   ├── ExpenseController       # CRUD de despesas + filtros
+│   ├── PaymentController       # Registro e histórico de pagamentos
+│   ├── DashboardController     # Saldo e resumo do casal
+│   ├── CardController          # Cartões de crédito/débito
+│   ├── GoalController          # Metas de economia
+│   ├── BudgetController        # Orçamentos mensais por categoria
+│   ├── InstallmentController   # Parcelas em aberto
+│   ├── CalendarController      # Calendário financeiro
+│   ├── SummaryController       # Resumo mensal com gráficos
+│   ├── CalculatorController    # Simulador de compras parceladas
+│   ├── NotificationController  # Alertas persistentes
+│   └── CoupleController        # Gestão do casal e convites
+│
 ├── Models/
 │   ├── Expense / ExpenseSplit / ExpenseInstallment
-│   ├── Balance            # Ledger de débito/crédito
-│   ├── Payment / PaymentSplit
+│   ├── Balance                 # Ledger de débito/crédito
+│   ├── Payment / PaymentItem
 │   ├── Couple / CoupleInvitation
-│   └── Card
+│   ├── Card / Budget / Goal
+│   └── ActivityLog
+│
 └── Services/
-    ├── ExpenseService     # Balances, parcelas, billing date
-    └── PaymentService     # Processamento de pagamentos
+    ├── ExpenseService          # Balances, parcelas e billing date
+    ├── PaymentService          # Amortização de dívidas
+    └── NotificationService     # Geração e dismissal de alertas
+
+resources/views/
+├── dashboard.blade.php
+├── expenses/
+├── payments/
+├── cards/
+├── goals/
+├── installments/
+├── calendar/
+├── summary/
+├── calculator/
+├── notifications/
+└── layouts/ + components/
 ```
+
+---
+
+## Licença
+
+Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+
+---
+
+<div align="center">
+  Desenvolvido por <a href="https://github.com/samuzaum">Samuel</a>
+</div>

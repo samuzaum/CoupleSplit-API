@@ -12,7 +12,7 @@
 </div>
 
 @if (session('success'))
-<div class="bg-green-100 text-green-700 p-4 rounded-xl text-sm">{{ session('success') }}</div>
+<div class="bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 p-4 rounded-xl text-sm">{{ session('success') }}</div>
 @endif
 
 {{-- filtros --}}

@@ -17,7 +17,7 @@ class ExpenseController extends Controller
     public function index(): JsonResponse
     {
         $user   = Auth::user();
-        $couple = $user->couples()->first();
+        $couple = $user->currentCouple();
 
         if (!$couple) {
             return response()->json(['message' => 'Usuário não faz parte de um casal.'], 422);
@@ -42,7 +42,7 @@ class ExpenseController extends Controller
         ]);
 
         $user   = Auth::user();
-        $couple = $user->couples()->firstOrFail();
+        $couple = $user->currentCoupleOrFail();
 
         $expenseDate = Carbon::parse($validated['expense_date']);
         $billingDate = $this->service->calculateBillingDate($validated['card_id'] ?? null, $expenseDate);

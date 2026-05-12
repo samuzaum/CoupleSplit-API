@@ -21,26 +21,24 @@ $couple = $user->couples()->first();
 </div>
 @endif
 
-@php
-$seenCategories = session('budget_notifications_seen', []);
-$unseenExceeded = $exceededBudgets->filter(fn($n) => !in_array($n['category'], $seenCategories));
-@endphp
-
-@if ($unseenExceeded->isNotEmpty())
+@if ($exceededBudgets->isNotEmpty())
 <div class="bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-800 rounded-2xl px-5 py-4">
 <div class="flex items-center justify-between gap-4">
     <a href="{{ route('notifications.index') }}" class="flex-1">
         <p class="text-sm font-semibold text-red-600 dark:text-red-400">
-            {{ $unseenExceeded->count() }} orçamento{{ $unseenExceeded->count() !== 1 ? 's' : '' }} estourado{{ $unseenExceeded->count() !== 1 ? 's' : '' }} este mês
+            {{ $exceededBudgets->count() }} orçamento{{ $exceededBudgets->count() !== 1 ? 's' : '' }} estourado{{ $exceededBudgets->count() !== 1 ? 's' : '' }} este mês
         </p>
         <p class="text-xs text-red-400 mt-0.5">
-            {{ $unseenExceeded->pluck('category')->join(', ') }}
+            {{ $exceededBudgets->pluck('category')->join(', ') }}
         </p>
     </a>
     <div class="flex items-center gap-3 shrink-0">
         <a href="{{ route('notifications.index') }}" class="text-xs text-red-500">Ver →</a>
         <form method="POST" action="{{ route('notifications.dismiss') }}">
             @csrf
+            @foreach($exceededBudgets as $n)
+                <input type="hidden" name="keys[]" value="{{ $n['key'] }}">
+            @endforeach
             <button type="submit" class="text-xs text-red-400 hover:text-red-600">✕</button>
         </form>
     </div>
@@ -292,27 +290,6 @@ DÉBITOS / CRÉDITOS
 </div>
 @endif
 
-{{-- ======================
-CRÉDITOS
-====================== --}}
-@if ($openCredits->isNotEmpty())
-<div class="
-bg-white dark:bg-black
-border border-gray-200 dark:border-gray-800
-rounded-3xl p-8
-">
-<h3 class="font-semibold mb-4 text-black dark:text-white">Créditos a receber</h3>
-<ul class="space-y-3 text-sm">
-@foreach ($openCredits as $credit)
-@php $remaining = $credit->amount - $credit->used_amount; @endphp
-<li class="flex justify-between">
-<span>{{ $credit->description }}</span>
-<strong class="text-green-600">R$ {{ number_format($remaining,2,',','.') }}</strong>
-</li>
-@endforeach
-</ul>
-</div>
-@endif
 
 {{-- ======================
 ORÇAMENTOS
@@ -362,13 +339,11 @@ rounded-3xl p-8
 @endif
 
 @if ($byCategory->isNotEmpty())
-<div class="
-bg-white dark:bg-black
-border border-gray-200 dark:border-gray-800
-rounded-3xl p-8
-">
-<h3 class="font-semibold mb-6 text-black dark:text-white">Gastos por categoria</h3>
-<canvas id="chartByCategory" height="120"></canvas>
+<div class="bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-3xl p-6">
+<h3 class="font-semibold mb-4 text-black dark:text-white">Gastos por categoria</h3>
+<div class="mx-auto" style="max-width:260px">
+    <canvas id="chartByCategory"></canvas>
+</div>
 </div>
 @endif
 
@@ -388,14 +363,29 @@ rounded-3xl p-8
     var catLabels   = @json($byCategory->keys());
     var catValues   = @json($byCategory->values());
 
+    var isDark = document.documentElement.classList.contains('dark');
+    var gridColor  = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+    var tickColor  = isDark ? '#9ca3af' : '#6b7280';
+    var barColor   = isDark ? 'rgba(255,255,255,0.80)' : 'rgba(0,0,0,0.75)';
+    var donutLight = ['#1a1a1a','#3d3d3d','#5e5e5e','#7f7f7f','#a0a0a0','#c1c1c1','#d4d4d4','#e8e8e8'];
+    var donutDark  = ['#ffffff','#d1d5db','#9ca3af','#6b7280','#4b5563','#374151','#1f2937','#111827'];
+    var donutColors = isDark ? donutDark : donutLight;
+    var legendColor = isDark ? '#d1d5db' : '#374151';
+
     if (document.getElementById('chartByMonth')) {
         new Chart(document.getElementById('chartByMonth'), {
             type: 'bar',
             data: {
                 labels: monthLabels,
-                datasets: [{ label: 'Total (R$)', data: monthValues, backgroundColor: 'rgba(0,0,0,0.75)' }]
+                datasets: [{ label: 'Total (R$)', data: monthValues, backgroundColor: barColor, borderRadius: 6 }]
             },
-            options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+            options: {
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: tickColor } },
+                    x: { grid: { display: false }, ticks: { color: tickColor } }
+                }
+            }
         });
     }
 
@@ -404,9 +394,17 @@ rounded-3xl p-8
             type: 'doughnut',
             data: {
                 labels: catLabels,
-                datasets: [{ data: catValues, backgroundColor: ['#1a1a1a','#3d3d3d','#5e5e5e','#7f7f7f','#a0a0a0','#c1c1c1','#e2e2e2','#f3f3f3'] }]
+                datasets: [{ data: catValues, backgroundColor: donutColors, borderWidth: 0 }]
             },
-            options: { plugins: { legend: { position: 'bottom' } } }
+            options: {
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { boxWidth: 10, font: { size: 11 }, color: legendColor, padding: 12 }
+                    }
+                },
+                maintainAspectRatio: true
+            }
         });
     }
 })();

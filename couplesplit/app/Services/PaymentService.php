@@ -54,10 +54,9 @@ class PaymentService
                 $debit->increment('used_amount', $consume);
 
                 // descrição para o item do histórico
-                $description = $debit->description;
-                if (!$description && $debit->origin === 'expense') {
-                    $description = Expense::find($debit->origin_id)?->description;
-                }
+                $description = $debit->origin === 'expense'
+                    ? Expense::find($debit->origin_id)?->description
+                    : null;
 
                 PaymentItem::create([
                     'payment_id'  => $payment->id,

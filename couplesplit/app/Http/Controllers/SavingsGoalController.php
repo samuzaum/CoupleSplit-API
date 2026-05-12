@@ -10,7 +10,7 @@ class SavingsGoalController extends Controller
 {
     public function index()
     {
-        $couple = Auth::user()->couples()->firstOrFail();
+        $couple = Auth::user()->currentCoupleOrFail();
         $goals  = SavingsGoal::where('couple_id', $couple->id)->orderBy('created_at')->get();
 
         return view('goals.index', compact('goals', 'couple'));
@@ -25,7 +25,7 @@ class SavingsGoalController extends Controller
             'color'         => 'nullable|string|size:7',
         ]);
 
-        $couple = Auth::user()->couples()->firstOrFail();
+        $couple = Auth::user()->currentCoupleOrFail();
 
         SavingsGoal::create([
             'couple_id'     => $couple->id,
@@ -40,7 +40,7 @@ class SavingsGoalController extends Controller
 
     public function contribute(Request $request, SavingsGoal $goal)
     {
-        $couple = Auth::user()->couples()->firstOrFail();
+        $couple = Auth::user()->currentCoupleOrFail();
         abort_if($goal->couple_id !== $couple->id, 403);
 
         $request->validate(['amount' => 'required|numeric|min:0.01']);
@@ -52,7 +52,7 @@ class SavingsGoalController extends Controller
 
     public function destroy(SavingsGoal $goal)
     {
-        $couple = Auth::user()->couples()->firstOrFail();
+        $couple = Auth::user()->currentCoupleOrFail();
         abort_if($goal->couple_id !== $couple->id, 403);
 
         $goal->delete();

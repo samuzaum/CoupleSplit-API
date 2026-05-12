@@ -4,10 +4,10 @@
 
 <div class="mx-auto max-w-3xl space-y-6">
 @if (session('success'))
-<div class="bg-green-100 text-green-700 p-4 rounded-xl text-sm">{{ session('success') }}</div>
+<div class="bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 p-4 rounded-xl text-sm">{{ session('success') }}</div>
 @endif
 @if (session('error'))
-<div class="bg-red-100 text-red-700 p-4 rounded-xl text-sm">{{ session('error') }}</div>
+<div class="bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 p-4 rounded-xl text-sm">{{ session('error') }}</div>
 @endif
 @if (session('budget_warning'))
 <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 text-yellow-800 dark:text-yellow-300 p-4 rounded-xl text-sm">
@@ -202,6 +202,28 @@ $shareIsPaid = $balance ? ($balance->used_amount >= $balance->amount) : false;
     @endif
 @endif
 </p>
+@if (!$expense->is_shared && $isMe)
+<div class="mt-1">
+    @if ($expense->paid_at)
+    <form method="POST" action="{{ route('expenses.mark-unpaid', $expense) }}">
+        @csrf
+        <button type="submit" class="text-xs text-gray-400 hover:text-yellow-600">
+            Marcar como pendente
+        </button>
+    </form>
+    @else
+    <form method="POST" action="{{ route('expenses.mark-paid', $expense) }}">
+        @csrf
+        <button type="submit" class="text-xs text-green-500 hover:text-green-700 font-medium">
+            ✓ Marcar como paga
+        </button>
+    </form>
+    @endif
+</div>
+@endif
+@if ($expense->notes)
+<p class="text-xs text-gray-400 mt-0.5 italic">{{ $expense->notes }}</p>
+@endif
 
 @if ($expense->is_shared)
 <p class="text-xs mt-1">
@@ -327,7 +349,7 @@ rounded-3xl p-8
 <h3 class="font-semibold mb-4 text-black dark:text-white">Orçamentos mensais</h3>
 
 @if (session('budget_success'))
-<div class="bg-green-100 text-green-700 p-3 rounded-xl text-sm mb-4">{{ session('budget_success') }}</div>
+<div class="bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 p-3 rounded-xl text-sm mb-4">{{ session('budget_success') }}</div>
 @endif
 
 <form method="POST" action="{{ route('budgets.store') }}" class="flex flex-wrap gap-3 mb-6">
@@ -419,10 +441,10 @@ Categorias personalizadas
 </h3>
 
 @if (session('cat_success'))
-<div class="bg-green-100 text-green-700 p-3 rounded-xl text-sm mb-4">{{ session('cat_success') }}</div>
+<div class="bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 p-3 rounded-xl text-sm mb-4">{{ session('cat_success') }}</div>
 @endif
 @if (session('cat_error'))
-<div class="bg-red-100 text-red-700 p-3 rounded-xl text-sm mb-4">{{ session('cat_error') }}</div>
+<div class="bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 p-3 rounded-xl text-sm mb-4">{{ session('cat_error') }}</div>
 @endif
 
 <form method="POST" action="{{ route('categories.store') }}" class="flex gap-3 mb-6">

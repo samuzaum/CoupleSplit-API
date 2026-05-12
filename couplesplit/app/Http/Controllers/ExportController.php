@@ -14,7 +14,7 @@ class ExportController extends Controller
     public function expenses(Request $request): StreamedResponse
     {
         $user   = Auth::user();
-        $couple = $user->couples()->firstOrFail();
+        $couple = $user->currentCoupleOrFail();
 
         $query = Expense::where('couple_id', $couple->id)
             ->with(['payer'])
@@ -72,7 +72,7 @@ class ExportController extends Controller
     public function payments(Request $request): StreamedResponse
     {
         $user   = Auth::user();
-        $couple = $user->couples()->firstOrFail();
+        $couple = $user->currentCoupleOrFail();
 
         $query = Payment::where('couple_id', $couple->id)
             ->with(['fromUser', 'toUser'])

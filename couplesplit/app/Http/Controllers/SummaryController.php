@@ -13,7 +13,7 @@ class SummaryController extends Controller
     public function index(Request $request)
     {
         $user   = Auth::user();
-        $couple = $user->couples()->firstOrFail();
+        $couple = $user->currentCoupleOrFail();
 
         $partner = $couple->users()->where('users.id', '!=', $user->id)->first();
 
