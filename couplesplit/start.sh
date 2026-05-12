@@ -4,12 +4,6 @@ set -e
 echo "==> Instalando dependências PHP..."
 composer install --no-dev --optimize-autoloader --no-interaction
 
-echo "==> Instalando dependências Node..."
-npm ci
-
-echo "==> Compilando assets..."
-npm run build
-
 echo "==> Configurando caches Laravel..."
 php artisan config:cache
 php artisan route:cache
