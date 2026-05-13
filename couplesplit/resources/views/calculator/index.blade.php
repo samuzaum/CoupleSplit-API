@@ -161,11 +161,12 @@ $barClass = fn($c) => match($c) {
 @endif
 
 <div class="bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden">
-
+    <div class="overflow-x-auto">
+    <div class="min-w-[360px]">
     <div class="grid grid-cols-4 px-5 py-3 text-xs text-gray-400 uppercase tracking-wide border-b border-gray-100 dark:border-gray-900">
         <span>Mês</span>
-        <span class="text-right">Fixo atual</span>
-        <span class="text-right">Nova parcela</span>
+        <span class="text-right">Fixo</span>
+        <span class="text-right">Parcela</span>
         <span class="text-right">Total</span>
     </div>
 
@@ -212,6 +213,8 @@ $barClass = fn($c) => match($c) {
     </div>
     @endforeach
 
+    </div>{{-- min-w --}}
+    </div>{{-- overflow-x-auto --}}
 </div>
 
 @if ($totalIncome)

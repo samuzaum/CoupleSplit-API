@@ -26,7 +26,7 @@
 
 
 {{-- totais --}}
-<div class="grid grid-cols-3 gap-4">
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
     <div class="bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-2xl p-5 text-center">
         <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">Total conjunto</p>
         <p class="text-xl font-bold text-black dark:text-white">
