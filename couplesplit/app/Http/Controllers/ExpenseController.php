@@ -19,7 +19,6 @@ class ExpenseController extends Controller
     public function create()
     {
         $user       = Auth::user();
-        $cards      = $user->cards;
         $couple     = $user->currentCouple();
         $customCats = $couple ? $couple->categories()->pluck('name') : collect();
 
@@ -32,26 +31,34 @@ class ExpenseController extends Controller
             $incomeRatio = round($myIncome / ($myIncome + $partnerIncome) * 100);
         }
 
-        return view('expenses.create', compact('cards', 'customCats', 'myIncome', 'partnerIncome', 'incomeRatio', 'partner'));
+        $myCards      = $user->cards;
+        $partnerCards = $partner?->cards ?? collect();
+
+        return view('expenses.create', compact('myCards', 'partnerCards', 'customCats', 'myIncome', 'partnerIncome', 'incomeRatio', 'partner'));
     }
 
     public function store(Request $request)
     {
         $request->validate([
-            'description'  => 'required|string|max:255',
-            'notes'        => 'nullable|string|max:1000',
-            'amount'       => 'required|numeric|min:0.01',
-            'expense_date' => 'required|date',
-            'card_id'      => 'nullable|exists:cards,id',
-            'is_shared'    => 'required|boolean',
-            'split_ratio'  => 'nullable|integer|min:1|max:99',
-            'is_recurring' => 'nullable|boolean',
-            'installments' => 'nullable|integer|min:1|max:48',
-            'category'     => 'required|string',
+            'description'    => 'required|string|max:255',
+            'notes'          => 'nullable|string|max:1000',
+            'amount'         => 'required|numeric|min:0.01',
+            'expense_date'   => 'required|date',
+            'card_id'        => 'nullable|exists:cards,id',
+            'is_shared'      => 'required|boolean',
+            'split_ratio'    => 'nullable|integer|min:1|max:99',
+            'is_recurring'   => 'nullable|boolean',
+            'installments'   => 'nullable|integer|min:1|max:48',
+            'category'       => 'required|string',
+            'paid_by_partner'=> 'nullable|boolean',
         ]);
 
         $user   = Auth::user();
         $couple = $user->currentCoupleOrFail();
+
+        // Quem pagou — padrão é o próprio usuário
+        $partner = $couple->users()->where('users.id', '!=', $user->id)->first();
+        $paidBy  = $request->boolean('paid_by_partner') && $partner ? $partner->id : $user->id;
 
         $expenseDate = Carbon::parse($request->expense_date);
         $billingDate = $this->service->calculateBillingDate($request->card_id, $expenseDate);
@@ -62,7 +69,7 @@ class ExpenseController extends Controller
 
         $expense = Expense::create([
             'couple_id'    => $couple->id,
-            'paid_by'      => $user->id,
+            'paid_by'      => $paidBy,
             'card_id'      => $request->card_id,
             'description'  => $request->description,
             'notes'        => $request->notes,

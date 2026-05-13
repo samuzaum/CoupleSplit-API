@@ -149,11 +149,30 @@ text-black dark:text-white
 </select>
 
 
+{{-- quem pagou (opcional, padrão = você) --}}
+@if ($partner)
+<input type="hidden" name="paid_by_partner" id="paid_by_partner_input" value="0">
+<div class="flex items-center justify-between">
+    <span class="text-sm text-gray-500 dark:text-gray-400">Quem pagou?</span>
+    <div class="flex rounded-full border border-gray-300 dark:border-gray-700 overflow-hidden text-sm font-medium">
+        <button type="button" id="payer_me"
+            onclick="setPayer('me')"
+            class="px-4 py-1.5 bg-black text-white dark:bg-white dark:text-black transition">
+            Eu
+        </button>
+        <button type="button" id="payer_partner"
+            onclick="setPayer('partner')"
+            class="px-4 py-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition">
+            {{ $partner->name }}
+        </button>
+    </div>
+</div>
+@endif
+
 {{-- cartão --}}
 <select
 id="card_select"
 name="card_id"
-
 class="
 w-full
 px-4 py-3
@@ -162,21 +181,23 @@ border border-gray-300 dark:border-gray-700
 bg-white dark:bg-black
 text-black dark:text-white
 ">
+<option value="" data-type="" data-owner="me">Sem cartão (dinheiro / pix)</option>
 
-<option value="" data-type="">
-Sem cartão (dinheiro / pix)
+@foreach ($myCards as $card)
+<option value="{{ $card->id }}" data-type="{{ $card->type }}" data-owner="me">
+    {{ $card->name }} ({{ ucfirst($card->type) }})
 </option>
-
-@foreach ($cards as $card)
-
-<option value="{{ $card->id }}" data-type="{{ $card->type }}">
-
-{{ $card->name }} ({{ ucfirst($card->type) }})
-
-</option>
-
 @endforeach
 
+@if ($partnerCards->isNotEmpty())
+<optgroup id="partner_cards_group" label="Cartões de {{ $partner->name ?? 'parceiro(a)' }}" class="hidden">
+    @foreach ($partnerCards as $card)
+    <option value="{{ $card->id }}" data-type="{{ $card->type }}" data-owner="partner" class="partner-card-option hidden">
+        {{ $card->name }} ({{ ucfirst($card->type) }})
+    </option>
+    @endforeach
+</optgroup>
+@endif
 </select>
 
 
@@ -215,7 +236,8 @@ text-black dark:text-white
     var notice  = document.getElementById('pix_notice');
 
     function toggle() {
-        var type    = select.options[select.selectedIndex].dataset.type;
+        var opt      = select.options[select.selectedIndex];
+        var type     = opt ? opt.dataset.type : '';
         var isCredit = type === 'credit';
         var hasCard  = select.value !== '';
 
@@ -228,6 +250,34 @@ text-black dark:text-white
     select.addEventListener('change', toggle);
     toggle();
 })();
+
+function setPayer(who) {
+    var isPartner = who === 'partner';
+
+    document.getElementById('paid_by_partner_input').value = isPartner ? '1' : '0';
+
+    // Estilo dos botões
+    var activeClass   = 'px-4 py-1.5 bg-black text-white dark:bg-white dark:text-black transition';
+    var inactiveClass = 'px-4 py-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition';
+    document.getElementById('payer_me').className      = isPartner ? inactiveClass : activeClass;
+    document.getElementById('payer_partner').className = isPartner ? activeClass    : inactiveClass;
+
+    // Mostra/esconde cartões do parceiro
+    var partnerGroup = document.getElementById('partner_cards_group');
+    document.querySelectorAll('.partner-card-option').forEach(function(opt) {
+        opt.hidden = !isPartner;
+    });
+    if (partnerGroup) partnerGroup.hidden = !isPartner;
+
+    // Esconde/mostra cartões do próprio usuário
+    document.querySelectorAll('[data-owner="me"]').forEach(function(opt) {
+        opt.hidden = isPartner && opt.value !== '';
+    });
+
+    // Reset seleção pro primeiro disponível
+    select.value = '';
+    select.dispatchEvent(new Event('change'));
+}
 </script>
 
 
