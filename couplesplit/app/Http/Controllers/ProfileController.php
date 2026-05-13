@@ -17,11 +17,17 @@ class ProfileController extends Controller
     public function edit(Request $request): View
     {
         $user     = $request->user();
-        $benefits = $user->benefits()->withCount('expenses')->get()->map(function ($b) {
-            $b->used      = $b->usedThisMonth();
-            $b->remaining = $b->remainingThisMonth();
-            return $b;
-        });
+        $couple   = $user->currentCouple();
+
+        // Benefícios próprios + benefícios do casal criados pelo parceiro
+        $benefits = \App\Models\UserBenefit::where('user_id', $user->id)
+            ->orWhere(fn($q) => $q->where('is_couple', true)->where('couple_id', $couple?->id))
+            ->get()
+            ->map(function ($b) {
+                $b->used      = $b->usedThisMonth();
+                $b->remaining = $b->remainingThisMonth();
+                return $b;
+            });
 
         return view('profile.edit', compact('user', 'benefits'));
     }

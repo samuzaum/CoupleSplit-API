@@ -13,11 +13,18 @@ class BenefitController extends Controller
         $request->validate([
             'name'           => 'required|string|max:100',
             'monthly_amount' => 'required|numeric|min:1',
+            'is_couple'      => 'nullable|boolean',
         ]);
 
-        Auth::user()->benefits()->create([
+        $user      = Auth::user();
+        $isCouple  = $request->boolean('is_couple');
+        $coupleId  = $isCouple ? $user->currentCouple()?->id : null;
+
+        $user->benefits()->create([
             'name'           => $request->name,
             'monthly_amount' => $request->monthly_amount,
+            'is_couple'      => $isCouple,
+            'couple_id'      => $coupleId,
         ]);
 
         return back()->with('success', 'Benefício adicionado!');

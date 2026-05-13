@@ -202,7 +202,12 @@ text-black dark:text-white
 
 
 {{-- benefício (opcional) --}}
-@php $myBenefits = auth()->user()->benefits; @endphp
+@php
+    $coupleId   = auth()->user()->currentCouple()?->id;
+    $myBenefits = \App\Models\UserBenefit::where('user_id', auth()->id())
+        ->orWhere(fn($q) => $q->where('is_couple', true)->where('couple_id', $coupleId))
+        ->get();
+@endphp
 @if ($myBenefits->isNotEmpty())
 <div>
     <label class="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
