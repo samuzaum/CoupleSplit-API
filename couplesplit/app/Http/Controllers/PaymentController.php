@@ -34,7 +34,14 @@ class PaymentController extends Controller
             ->where('type', 'debit')
             ->whereColumn('used_amount', '<', 'amount')
             ->orderBy('created_at')
-            ->get();
+            ->get()
+            ->map(function ($balance) {
+                $balance->remaining    = round($balance->amount - $balance->used_amount, 2);
+                $balance->label        = $balance->origin === 'expense'
+                    ? (\App\Models\Expense::find($balance->origin_id)?->description ?? 'Despesa')
+                    : 'Outro';
+                return $balance;
+            });
 
         $personalUnpaid = Expense::where('couple_id', $couple->id)
             ->where('is_shared', false)
