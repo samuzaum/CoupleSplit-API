@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <title>{{ config('app.name', 'Couple Split') }}</title>
+    <title>{{ config('app.name', 'CoupleSplit') }}</title>
+    <link rel="icon" type="image/png" href="{{ asset('images/logo-branca.png') }}">
 
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;600;700&display=swap" rel="stylesheet">
@@ -27,12 +28,15 @@
 
     <div class="min-h-screen flex flex-col items-center justify-center px-6">
 
-        <!-- Sua Logo -->
+        <!-- Logo (tema sincronizado) -->
         <div class="mb-10">
             <a href="/">
-                <img src="{{ asset('images/logo.png') }}" 
-                     alt="Couple Split"
-                     class="h-12 mx-auto">
+                <img src="{{ asset('images/logo-preta.png') }}"
+                     alt="CoupleSplit"
+                     class="h-12 mx-auto dark:hidden">
+                <img src="{{ asset('images/logo-branca.png') }}"
+                     alt="CoupleSplit"
+                     class="h-12 mx-auto hidden dark:block">
             </a>
         </div>
         <!-- Container minimalista -->
