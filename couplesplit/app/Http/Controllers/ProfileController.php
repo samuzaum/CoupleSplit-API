@@ -16,9 +16,14 @@ class ProfileController extends Controller
      */
     public function edit(Request $request): View
     {
-        return view('profile.edit', [
-            'user' => $request->user(),
-        ]);
+        $user     = $request->user();
+        $benefits = $user->benefits()->withCount('expenses')->get()->map(function ($b) {
+            $b->used      = $b->usedThisMonth();
+            $b->remaining = $b->remainingThisMonth();
+            return $b;
+        });
+
+        return view('profile.edit', compact('user', 'benefits'));
     }
 
     /**

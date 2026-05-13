@@ -51,6 +51,11 @@ class User extends Authenticatable
        RELATIONSHIPS
     ====================== */
 
+    public function benefits(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\UserBenefit::class);
+    }
+
     public function couples(): BelongsToMany
     {
         return $this->belongsToMany(Couple::class)->withTimestamps();

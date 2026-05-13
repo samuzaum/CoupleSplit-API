@@ -51,6 +51,7 @@ class ExpenseController extends Controller
             'installments'   => 'nullable|integer|min:1|max:48',
             'category'       => 'required|string',
             'paid_by_partner'=> 'nullable|boolean',
+            'benefit_id'     => 'nullable|exists:user_benefits,id',
         ]);
 
         $user   = Auth::user();
@@ -64,20 +65,23 @@ class ExpenseController extends Controller
         $billingDate = $this->service->calculateBillingDate($request->card_id, $expenseDate);
         $splitRatio  = $request->is_shared ? round(($request->split_ratio ?? 50) / 100, 4) : 1.0;
 
-        // Pix/dinheiro (sem cartão) = pago na hora
-        $paidAt = $request->card_id ? null : now();
+        // Benefício ou pix/dinheiro = pago na hora, sem débito entre o casal
+        $hasBenefit = $request->filled('benefit_id');
+        $paidAt     = ($hasBenefit || !$request->card_id) ? now() : null;
+        $isShared   = $hasBenefit ? false : $request->is_shared;
 
         $expense = Expense::create([
             'couple_id'    => $couple->id,
             'paid_by'      => $paidBy,
-            'card_id'      => $request->card_id,
+            'card_id'      => $hasBenefit ? null : $request->card_id,
+            'benefit_id'   => $request->benefit_id,
             'description'  => $request->description,
             'notes'        => $request->notes,
             'category'     => $request->category,
             'amount'       => $request->amount,
             'expense_date' => $expenseDate,
             'billing_date' => $billingDate,
-            'is_shared'    => $request->is_shared,
+            'is_shared'    => $isShared,
             'split_ratio'  => $splitRatio,
             'is_recurring' => $request->boolean('is_recurring'),
             'paid_at'      => $paidAt,

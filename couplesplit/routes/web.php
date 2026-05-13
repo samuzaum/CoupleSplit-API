@@ -18,6 +18,7 @@ use App\Http\Controllers\CalculatorController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\SavingsGoalController;
 use App\Http\Controllers\InstallmentController;
+use App\Http\Controllers\BenefitController;
 /*
 |--------------------------------------------------------------------------
 | Página inicial pública
@@ -53,6 +54,9 @@ Route::middleware(['auth'])->group(function () {
     | Perfil
     |--------------------------------------------------------------------------
     */
+    Route::post('/benefits', [BenefitController::class, 'store'])->name('benefits.store');
+    Route::delete('/benefits/{benefit}', [BenefitController::class, 'destroy'])->name('benefits.destroy');
+
     Route::get('/profile', [ProfileController::class, 'edit'])
         ->name('profile.edit');
 

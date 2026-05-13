@@ -35,6 +35,7 @@ class Expense extends Model
         'parent_id',
         'paid_at',
         'status',
+        'benefit_id',
     ];
 
     protected $casts = [

@@ -201,6 +201,31 @@ text-black dark:text-white
 </select>
 
 
+{{-- benefício (opcional) --}}
+@php $myBenefits = auth()->user()->benefits; @endphp
+@if ($myBenefits->isNotEmpty())
+<div>
+    <label class="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+        <input type="checkbox" id="use_benefit_check" class="rounded border-gray-300"
+            onchange="toggleBenefit(this.checked)">
+        Pago com benefício
+    </label>
+    <div id="benefit_select_wrapper" class="mt-3 hidden">
+        <select name="benefit_id" id="benefit_select"
+            class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-black text-black dark:text-white">
+            <option value="">Selecione o benefício</option>
+            @foreach ($myBenefits as $b)
+            <option value="{{ $b->id }}"
+                data-remaining="{{ $b->remainingThisMonth() }}">
+                {{ $b->name }}
+                — saldo: R$ {{ number_format($b->remainingThisMonth(), 2, ',', '.') }}
+            </option>
+            @endforeach
+        </select>
+    </div>
+</div>
+@endif
+
 {{-- aviso pix/dinheiro --}}
 <div id="pix_notice" class="text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-4 py-3">
     ✓ Pix / dinheiro — será marcado como <strong>pago</strong> automaticamente.
@@ -250,6 +275,20 @@ text-black dark:text-white
     select.addEventListener('change', toggle);
     toggle();
 })();
+
+function toggleBenefit(checked) {
+    var wrapper = document.getElementById('benefit_select_wrapper');
+    if (wrapper) wrapper.classList.toggle('hidden', !checked);
+
+    // Quando usar benefício: força "sem cartão" e desmarca compartilhada
+    if (checked) {
+        var cardSelect = document.getElementById('card_select');
+        if (cardSelect) { cardSelect.value = ''; cardSelect.dispatchEvent(new Event('change')); }
+
+        var sharedCheck = document.getElementById('is_shared_check');
+        if (sharedCheck) { sharedCheck.checked = false; toggleSplitRatio(); }
+    }
+}
 
 function setPayer(who) {
     var isPartner = who === 'partner';
