@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <title>{{ config('app.name', 'CoupleSplit') }}</title>
-    <link rel="icon" type="image/png" href="{{ asset('images/logo-branca.png') }}">
+    <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
 
     <!-- Dark mode init com detecção automática -->
     <script>
