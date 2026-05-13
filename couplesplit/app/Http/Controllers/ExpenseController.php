@@ -57,6 +57,9 @@ class ExpenseController extends Controller
         $billingDate = $this->service->calculateBillingDate($request->card_id, $expenseDate);
         $splitRatio  = $request->is_shared ? round(($request->split_ratio ?? 50) / 100, 4) : 1.0;
 
+        // Pix/dinheiro (sem cartão) = pago na hora
+        $paidAt = $request->card_id ? null : now();
+
         $expense = Expense::create([
             'couple_id'    => $couple->id,
             'paid_by'      => $user->id,
@@ -70,6 +73,7 @@ class ExpenseController extends Controller
             'is_shared'    => $request->is_shared,
             'split_ratio'  => $splitRatio,
             'is_recurring' => $request->boolean('is_recurring'),
+            'paid_at'      => $paidAt,
         ]);
 
         $this->service->createBalances($expense);

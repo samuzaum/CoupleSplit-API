@@ -180,6 +180,11 @@ Sem cartão (dinheiro / pix)
 </select>
 
 
+{{-- aviso pix/dinheiro --}}
+<div id="pix_notice" class="text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-4 py-3">
+    ✓ Pix / dinheiro — será marcado como <strong>pago</strong> automaticamente.
+</div>
+
 {{-- parcelas (visível só com cartão de crédito) --}}
 <div id="installments_wrapper" style="display:none">
 <input
@@ -207,11 +212,16 @@ text-black dark:text-white
     var select  = document.getElementById('card_select');
     var wrapper = document.getElementById('installments_wrapper');
     var input   = document.getElementById('installments_input');
+    var notice  = document.getElementById('pix_notice');
 
     function toggle() {
-        var type = select.options[select.selectedIndex].dataset.type;
+        var type    = select.options[select.selectedIndex].dataset.type;
         var isCredit = type === 'credit';
+        var hasCard  = select.value !== '';
+
         wrapper.style.display = isCredit ? '' : 'none';
+        notice.style.display  = hasCard ? 'none' : '';
+
         if (!isCredit) input.value = 1;
     }
 
