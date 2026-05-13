@@ -106,7 +106,7 @@
     </nav>
 
     <!-- HERO -->
-    <section class="flex flex-col lg:flex-row items-center justify-between px-8 lg:px-20 py-20">
+    <section class="flex flex-col lg:flex-row items-center justify-between px-6 lg:px-20 py-10 lg:py-20">
 
         <!-- Texto -->
         <div class="max-w-xl">
@@ -137,10 +137,10 @@
         </div>
 
         <!-- Card mock (cores mantidas) -->
-        <div class="mt-16 lg:mt-0">
+        <div class="mt-10 lg:mt-0 w-full lg:w-auto">
             <div class="bg-gray-100 dark:bg-gray-900
                         border border-gray-200 dark:border-gray-800
-                        shadow-sm rounded-3xl p-8 w-80 transition-colors duration-300">
+                        shadow-sm rounded-3xl p-8 w-full max-w-sm mx-auto lg:w-80 transition-colors duration-300">
 
                 <p class="text-gray-500 dark:text-gray-400 text-sm mb-2">
                     Resumo do casal

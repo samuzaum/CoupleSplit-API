@@ -55,7 +55,7 @@ SALDO PRINCIPAL
 bg-white dark:bg-black
 border border-gray-200 dark:border-gray-800
 rounded-3xl
-p-10
+p-6 sm:p-10
 text-center
 ">
 
@@ -65,7 +65,7 @@ Saldo entre vocês
 
 @if ($netBalance > 0)
 
-<p class="text-5xl font-bold text-green-600 mb-2">
+<p class="text-3xl sm:text-5xl font-bold text-green-600 mb-2">
 + R$ {{ number_format($netBalance,2,',','.') }}
 </p>
 
@@ -75,7 +75,7 @@ Saldo entre vocês
 
 @elseif ($netBalance < 0)
 
-<p class="text-5xl font-bold text-red-600 mb-2">
+<p class="text-3xl sm:text-5xl font-bold text-red-600 mb-2">
 - R$ {{ number_format(abs($netBalance),2,',','.') }}
 </p>
 
@@ -179,7 +179,7 @@ R$ {{ number_format($coupleMonthTotal, 2, ',', '.') }}
 </div>
 </div>
 
-<div class="grid grid-cols-2 gap-4 mt-2">
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
 @foreach($couple->users as $member)
 @php $isMe = $member->id === $user->id; @endphp
 <div class="bg-gray-50 dark:bg-gray-900 rounded-2xl p-4">
@@ -307,11 +307,11 @@ rounded-3xl p-8
 $color = $budget->percentage >= 100 ? 'bg-red-500' : ($budget->percentage >= 75 ? 'bg-yellow-400' : 'bg-green-500');
 @endphp
 <div>
-    <div class="flex justify-between text-sm mb-1">
+    <div class="flex justify-between items-baseline gap-2 text-sm mb-1 flex-wrap">
         <span class="font-medium text-black dark:text-white">{{ $budget->category }}</span>
-        <span class="text-gray-500">
+        <span class="text-gray-500 text-xs shrink-0">
             R$ {{ number_format($budget->spent, 2, ',', '.') }}
-            de R$ {{ number_format($budget->amount, 2, ',', '.') }}
+            / R$ {{ number_format($budget->amount, 2, ',', '.') }}
             ({{ $budget->percentage }}%)
         </span>
     </div>
