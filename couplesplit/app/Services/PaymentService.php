@@ -49,6 +49,18 @@ class PaymentService
                     ExpenseSplit::where('expense_id', $debit->origin_id)
                         ->where('user_id', $payer->id)
                         ->update(['is_paid' => true]);
+
+                    // Se todos os splits da despesa estão pagos, marca a despesa como paga
+                    $expense = Expense::find($debit->origin_id);
+                    if ($expense && $expense->paid_at === null) {
+                        $allPaid = ExpenseSplit::where('expense_id', $expense->id)
+                            ->where('is_paid', false)
+                            ->doesntExist();
+
+                        if ($allPaid) {
+                            $expense->update(['paid_at' => now()]);
+                        }
+                    }
                 }
 
                 $debit->increment('used_amount', $consume);
