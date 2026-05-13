@@ -27,8 +27,6 @@ Registrar pagamento
 class="bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-3xl p-8 space-y-6">
 @csrf
 <input type="hidden" name="payment_type" value="partner">
-<input type="hidden" name="amount" id="partner_amount" value="0">
-
 <p class="text-sm text-gray-500">
     O que você quer quitar para
     <strong class="text-black dark:text-white">{{ $partner->name }}</strong>?
@@ -37,46 +35,52 @@ class="bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounde
 @if ($openDebits->isEmpty())
     <p class="text-sm text-gray-500">Nenhuma dívida em aberto com {{ $partner->name }}! 🎉</p>
 @else
-    {{-- Selecionar tudo --}}
-    <label class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 cursor-pointer select-none">
-        <input type="checkbox" id="select_all" class="rounded border-gray-300" onchange="toggleAll(this)">
-        Selecionar tudo
-    </label>
+    {{-- Dívidas opcionais para selecionar --}}
+    <div>
+        <div class="flex items-center justify-between mb-3">
+            <p class="text-xs font-medium text-gray-400 uppercase tracking-wide">Dívidas em aberto — opcional</p>
+            <label class="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer select-none">
+                <input type="checkbox" id="select_all" class="rounded border-gray-300" onchange="toggleAll(this)">
+                Selecionar tudo
+            </label>
+        </div>
 
-    {{-- Lista de dívidas --}}
-    <div class="space-y-3" id="debits_list">
-        @foreach ($openDebits as $debit)
-        <label class="debit-item flex items-center justify-between gap-3 p-4 rounded-2xl border border-gray-200 dark:border-gray-800 cursor-pointer transition hover:border-black dark:hover:border-white has-[:checked]:border-black dark:has-[:checked]:border-white has-[:checked]:bg-gray-50 dark:has-[:checked]:bg-gray-900">
-            <div class="flex items-center gap-3">
-                <input type="checkbox"
-                    class="debit-check rounded border-gray-300 shrink-0"
-                    data-amount="{{ $debit->remaining }}"
-                    onchange="recalcTotal()">
-                <div>
+        <div class="space-y-2">
+            @foreach ($openDebits as $debit)
+            <label class="debit-item flex items-center justify-between gap-3 p-4 rounded-2xl border border-gray-200 dark:border-gray-800 cursor-pointer transition hover:border-black dark:hover:border-white has-[:checked]:border-black dark:has-[:checked]:border-white has-[:checked]:bg-gray-50 dark:has-[:checked]:bg-gray-900">
+                <div class="flex items-center gap-3">
+                    <input type="checkbox"
+                        class="debit-check rounded border-gray-300 shrink-0"
+                        data-amount="{{ $debit->remaining }}"
+                        onchange="recalcTotal()">
                     <p class="text-sm font-medium text-black dark:text-white">{{ $debit->label }}</p>
-                    <p class="text-xs text-gray-400">{{ $debit->origin === 'expense' ? 'Despesa' : 'Outro' }}</p>
                 </div>
-            </div>
-            <span class="text-sm font-semibold text-black dark:text-white shrink-0">
-                R$ {{ number_format($debit->remaining, 2, ',', '.') }}
-            </span>
-        </label>
-        @endforeach
+                <span class="text-sm font-semibold text-black dark:text-white shrink-0">
+                    R$ {{ number_format($debit->remaining, 2, ',', '.') }}
+                </span>
+            </label>
+            @endforeach
+        </div>
     </div>
-
-    {{-- Rodapé com total --}}
-    <div class="border-t border-gray-200 dark:border-gray-800 pt-4 flex justify-between items-center">
-        <span class="text-sm text-gray-500">Total selecionado</span>
-        <span id="total_display" class="text-xl font-bold text-black dark:text-white">R$ 0,00</span>
-    </div>
-
-    <button id="btn_confirmar" type="submit" disabled
-        class="w-full py-3 rounded-full font-semibold transition
-               bg-gray-200 text-gray-400 dark:bg-gray-800 dark:text-gray-600
-               disabled:cursor-not-allowed">
-        Selecione ao menos uma dívida
-    </button>
 @endif
+
+{{-- Valor — editável, preenchido pelos checks ou manualmente --}}
+<div class="space-y-1">
+    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+        Valor a pagar
+        @if ($openDebits->isNotEmpty())
+            <span class="text-xs text-gray-400 font-normal">(preenchido pelos itens ou digite livremente)</span>
+        @endif
+    </label>
+    <input type="number" name="amount" id="amount_input" step="0.01" min="0.01" required
+        placeholder="R$ 0,00"
+        class="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-black text-black dark:text-white px-4 py-3 outline-none focus:ring-2 focus:ring-black dark:focus:ring-white">
+</div>
+
+<button type="submit"
+    class="w-full py-3 rounded-full font-semibold bg-black text-white dark:bg-white dark:text-black hover:opacity-90 transition">
+    Confirmar pagamento
+</button>
 </form>
 
 
@@ -131,8 +135,8 @@ function setType(type) {
 }
 
 function recalcTotal() {
-    var checks  = document.querySelectorAll('.debit-check');
-    var total   = 0;
+    var checks     = document.querySelectorAll('.debit-check');
+    var total      = 0;
     var anyChecked = false;
 
     checks.forEach(function(c) {
@@ -142,29 +146,17 @@ function recalcTotal() {
         }
     });
 
-    // Atualiza display
-    document.getElementById('total_display').textContent =
-        'R$ ' + total.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-
-    // Atualiza campo hidden
-    document.getElementById('partner_amount').value = total.toFixed(2);
-
-    // Habilita/desabilita botão
-    var btn = document.getElementById('btn_confirmar');
+    // Preenche o campo de valor com o total dos checks
     if (anyChecked) {
-        btn.disabled = false;
-        btn.className = 'w-full py-3 rounded-full font-semibold transition bg-black text-white dark:bg-white dark:text-black hover:opacity-90';
-        btn.textContent = 'Confirmar pagamento';
+        document.getElementById('amount_input').value = total.toFixed(2);
     } else {
-        btn.disabled = true;
-        btn.className = 'w-full py-3 rounded-full font-semibold transition bg-gray-200 text-gray-400 dark:bg-gray-800 dark:text-gray-600 disabled:cursor-not-allowed';
-        btn.textContent = 'Selecione ao menos uma dívida';
+        document.getElementById('amount_input').value = '';
     }
 
     // Sincroniza "selecionar tudo"
     var selectAll = document.getElementById('select_all');
     if (selectAll) {
-        selectAll.checked = anyChecked && [...checks].every(c => c.checked);
+        selectAll.checked      = anyChecked && [...checks].every(c => c.checked);
         selectAll.indeterminate = anyChecked && ![...checks].every(c => c.checked);
     }
 }
