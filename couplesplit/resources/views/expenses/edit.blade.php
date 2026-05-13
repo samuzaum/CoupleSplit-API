@@ -85,12 +85,13 @@ bg-white dark:bg-black text-black dark:text-white
 
 <select
 name="category"
+required
 class="
 w-full px-4 py-3 rounded-xl
 border border-gray-300 dark:border-gray-700
 bg-white dark:bg-black text-black dark:text-white
 ">
-<option value="">Categoria (opcional)</option>
+<option value="" disabled>Selecione uma categoria</option>
 @foreach (\App\Models\Expense::CATEGORIES as $cat)
 <option value="{{ $cat }}" {{ old('category', $expense->category) === $cat ? 'selected' : '' }}>{{ $cat }}</option>
 @endforeach

@@ -47,7 +47,7 @@ class ExpenseController extends Controller
             'split_ratio'  => 'nullable|integer|min:1|max:99',
             'is_recurring' => 'nullable|boolean',
             'installments' => 'nullable|integer|min:1|max:48',
-            'category'     => 'nullable|string',
+            'category'     => 'required|string',
         ]);
 
         $user   = Auth::user();
@@ -151,7 +151,7 @@ class ExpenseController extends Controller
                 'is_shared'    => 'required|boolean',
                 'split_ratio'  => 'nullable|integer|min:1|max:99',
                 'is_recurring' => 'nullable|boolean',
-                'category'     => 'nullable|string',
+                'category'     => 'required|string',
             ]);
 
             $expenseDate = Carbon::parse($request->expense_date);
