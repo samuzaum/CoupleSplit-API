@@ -4,7 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <title>{{ config('app.name', 'Couple Split') }}</title>
+    <title>{{ config('app.name', 'CoupleSplit') }}</title>
+    <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
 
     <!-- Dark mode init com detecção automática -->
     <script>
@@ -39,10 +40,13 @@
                 border-b border-gray-200 dark:border-gray-800 transition-colors duration-300">
 
         <div class="flex items-center gap-3">
-            <img src="{{ asset('images/logo.png') }}" 
-                 alt="Couple Split" 
-                 class="w-10">
-            <span class="font-semibold text-lg">Couple Split</span>
+            <img src="{{ asset('images/logo-preta.png') }}"
+                 alt="CoupleSplit"
+                 class="w-10 dark:hidden">
+            <img src="{{ asset('images/logo-branca.png') }}"
+                 alt="CoupleSplit"
+                 class="w-10 hidden dark:block">
+            <span class="font-semibold text-lg">CoupleSplit</span>
         </div>
 
         <div class="flex items-center gap-6 text-sm">
