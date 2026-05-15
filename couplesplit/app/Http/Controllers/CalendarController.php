@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Expense;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -18,9 +19,13 @@ class CalendarController extends Controller
                 ->with('error', 'Você ainda não faz parte de um casal.');
         }
 
-        $currentMonth = $request->month
-            ? \Carbon\Carbon::createFromFormat('Y-m', $request->month)->startOfMonth()
-            : \Carbon\Carbon::now()->startOfMonth();
+        try {
+            $currentMonth = $request->month
+                ? Carbon::createFromFormat('Y-m', $request->month)->startOfMonth()
+                : Carbon::now()->startOfMonth();
+        } catch (\Exception $e) {
+            $currentMonth = Carbon::now()->startOfMonth();
+        }
 
         $prevMonth = $currentMonth->copy()->subMonth();
         $nextMonth = $currentMonth->copy()->addMonth();

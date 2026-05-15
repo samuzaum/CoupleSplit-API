@@ -89,6 +89,7 @@ resize-none
 
 {{-- valor --}}
 <input
+id="expense_amount"
 name="amount"
 type="number"
 step="0.01"
@@ -199,6 +200,27 @@ bg-white dark:bg-black
 text-black dark:text-white
 "
 />
+<input
+id="paid_installments_input"
+name="paid_installments"
+type="number"
+min="0"
+max="48"
+value="{{ old('paid_installments', 0) }}"
+placeholder="Parcelas ja quitadas antes do cadastro"
+class="
+w-full
+mt-3
+px-4 py-3
+rounded-xl
+border border-gray-300 dark:border-gray-700
+bg-white dark:bg-black
+text-black dark:text-white
+"
+/>
+<p class="mt-2 text-xs text-gray-400">
+Use para compras antigas: essas parcelas ficam fora das dividas em aberto.
+</p>
 </div>
 
 <script>
@@ -206,12 +228,16 @@ text-black dark:text-white
     var select  = document.getElementById('card_select');
     var wrapper = document.getElementById('installments_wrapper');
     var input   = document.getElementById('installments_input');
+    var paidInput = document.getElementById('paid_installments_input');
 
     function toggle() {
         var type = select.options[select.selectedIndex].dataset.type;
         var isCredit = type === 'credit';
         wrapper.style.display = isCredit ? '' : 'none';
-        if (!isCredit) input.value = 1;
+        if (!isCredit) {
+            input.value = 1;
+            paidInput.value = 0;
+        }
     }
 
     select.addEventListener('change', toggle);
@@ -265,6 +291,21 @@ Despesa compartilhada
     class="w-full"
 />
 
+<div class="grid sm:grid-cols-2 gap-3 mt-3">
+    <div>
+        <label class="block text-xs text-gray-500 mb-1">Sua parte em R$</label>
+        <input id="split_amount_input" type="number" step="0.01" min="0" placeholder="Ex: 120.00"
+            oninput="updateRatioFromAmount(this.value)"
+            class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-black text-black dark:text-white">
+    </div>
+    <div>
+        <label class="block text-xs text-gray-500 mb-1">Parte do parceiro em R$</label>
+        <input id="split_other_amount" type="text" readonly
+            class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 text-gray-500">
+    </div>
+</div>
+<p class="mt-2 text-xs text-gray-400">O valor digitado ajusta a porcentagem automaticamente.</p>
+
 @if ($incomeRatio)
 <button type="button" onclick="applyIncomeRatio({{ $incomeRatio }})"
     class="mt-2 text-xs px-3 py-1 rounded-full border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-black dark:hover:border-white">
@@ -291,11 +332,36 @@ Despesa recorrente (repete todo mês)
 </label>
 
 <script>
+function money(value) {
+    return 'R$ ' + value.toFixed(2).replace('.', ',');
+}
+function totalAmount() {
+    return parseFloat(document.getElementById('expense_amount').value || '0');
+}
+function syncSplitAmounts() {
+    var total = totalAmount();
+    var ratio = parseInt(document.getElementById('split_ratio_input').value || '50');
+    var mine = total > 0 ? total * ratio / 100 : 0;
+    var other = Math.max(0, total - mine);
+    var mineInput = document.getElementById('split_amount_input');
+    var otherInput = document.getElementById('split_other_amount');
+    if (mineInput && document.activeElement !== mineInput) {
+        mineInput.value = total > 0 ? mine.toFixed(2) : '';
+    }
+    if (otherInput) otherInput.value = total > 0 ? money(other) : '';
+}
 function updateRatio(val) {
-    val = parseInt(val);
+    val = Math.max(1, Math.min(99, parseInt(val || 50)));
     document.getElementById('ratio_display').textContent = val;
-    document.getElementById('ratio_other').textContent   = 100 - val;
-    document.getElementById('split_ratio_input').value   = val;
+    document.getElementById('ratio_other').textContent = 100 - val;
+    document.getElementById('split_ratio_input').value = val;
+    syncSplitAmounts();
+}
+function updateRatioFromAmount(value) {
+    var total = totalAmount();
+    var amount = parseFloat(value || '0');
+    if (total <= 0) return;
+    updateRatio(Math.round((amount / total) * 100));
 }
 function applyIncomeRatio(ratio) {
     updateRatio(ratio);
@@ -305,7 +371,10 @@ function toggleSplitRatio() {
     document.getElementById('split_ratio_wrapper').style.display = shared ? '' : 'none';
     var warn = document.getElementById('income_warning');
     if (warn) warn.style.display = shared ? '' : 'none';
+    syncSplitAmounts();
 }
+document.getElementById('expense_amount').addEventListener('input', syncSplitAmounts);
+updateRatio(document.getElementById('split_ratio_input').value);
 toggleSplitRatio();
 </script>
 

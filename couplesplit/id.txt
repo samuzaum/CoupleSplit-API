@@ -3,3 +3,6 @@ calendario
 parcelamento 
 graficos
 investimento
+Futuro: separar paid_at de parcelas em campos distintos para "paga no cartao" e "quitada/ignorada entre o casal".
+Futuro: criar visao/exportacao por competencia mensal para despesas parceladas, alem da exportacao atual por compra original.
+Futuro: mostrar pagamento parcial por parcela usando balances/payment_items.

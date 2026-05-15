@@ -5,12 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\Couple;
 use App\Models\CoupleInvitation;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 class CoupleInvitationController extends Controller
 {
     public function store(Request $request, Couple $couple)
     {
+        abort_unless($couple->users()->where('users.id', Auth::id())->exists(), 403);
+
         $request->validate([
             'email' => 'required|email',
         ]);
@@ -21,9 +24,9 @@ class CoupleInvitationController extends Controller
             'token' => Str::uuid(),
         ]);
 
-        // por enquanto sem e-mail real
         return back()->with('success', 'Convite enviado');
     }
+
     public function accept(string $token)
     {
         $invitation = CoupleInvitation::where('token', $token)
@@ -44,5 +47,4 @@ class CoupleInvitationController extends Controller
 
         return redirect('/dashboard');
     }
-
 }

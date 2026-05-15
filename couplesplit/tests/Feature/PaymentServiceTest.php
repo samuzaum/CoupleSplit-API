@@ -76,3 +76,30 @@ it('computes total open debit correctly', function () {
     $service->process($userB, $couple, $userA, 40.0);
     expect($service->totalOpenDebit($userB, $userA))->toBe(60.0);
 });
+it('only treats due shared installments as open debt', function () {
+    Carbon::setTestNow(Carbon::create(2026, 5, 14));
+
+    $userA = User::factory()->create();
+    $userB = User::factory()->create();
+    $couple = Couple::create(['name' => 'Casal']);
+    $couple->users()->attach([$userA->id, $userB->id]);
+
+    $expense = Expense::create([
+        'couple_id'    => $couple->id,
+        'paid_by'      => $userA->id,
+        'description'  => 'Compra parcelada',
+        'amount'       => 1000.00,
+        'expense_date' => Carbon::today(),
+        'billing_date' => Carbon::today(),
+        'is_shared'    => true,
+        'split_ratio'  => 0.5,
+    ]);
+
+    app(ExpenseService::class)->createInstallments($expense, 2);
+    $expense->load('installments');
+    app(ExpenseService::class)->createBalances($expense);
+
+    expect(app(PaymentService::class)->totalOpenDebit($userB, $userA))->toBe(250.0);
+
+    Carbon::setTestNow();
+});

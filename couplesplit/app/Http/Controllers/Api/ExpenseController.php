@@ -8,6 +8,7 @@ use App\Services\ExpenseService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Carbon\Carbon;
 
 class ExpenseController extends Controller
@@ -32,16 +33,18 @@ class ExpenseController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $user = Auth::user();
+
         $validated = $request->validate([
             'description'  => 'required|string|max:255',
             'amount'       => 'required|numeric|min:0.01',
             'expense_date' => 'required|date',
-            'card_id'      => 'nullable|exists:cards,id',
+            'card_id'      => ['nullable', Rule::exists('cards', 'id')->where('user_id', $user->id)],
             'is_shared'    => 'required|boolean',
             'installments' => 'nullable|integer|min:1|max:48',
+            'paid_installments' => 'nullable|integer|min:0|max:48',
         ]);
 
-        $user   = Auth::user();
         $couple = $user->currentCoupleOrFail();
 
         $expenseDate = Carbon::parse($validated['expense_date']);
@@ -58,12 +61,23 @@ class ExpenseController extends Controller
             'is_shared'    => $validated['is_shared'],
         ]);
 
-        $this->service->createBalances($expense);
-
         $installments = (int) ($validated['installments'] ?? 1);
-        if ($installments > 1) {
-            $this->service->createInstallments($expense, $installments);
+        $paidInstallments = (int) ($validated['paid_installments'] ?? 0);
+        if ($paidInstallments > $installments) {
+            return response()->json([
+                'message' => 'As parcelas ja quitadas nao podem ser maiores que o total de parcelas.',
+                'errors' => [
+                    'paid_installments' => ['As parcelas ja quitadas nao podem ser maiores que o total de parcelas.'],
+                ],
+            ], 422);
         }
+
+        if ($installments > 1) {
+            $this->service->createInstallments($expense, $installments, $paidInstallments);
+            $expense->load('installments');
+        }
+
+        $this->service->createBalances($expense);
 
         return response()->json($expense->load('installments'), 201);
     }

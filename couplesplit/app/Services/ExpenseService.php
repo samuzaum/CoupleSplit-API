@@ -18,61 +18,92 @@ class ExpenseService
             return;
         }
 
-        $users     = $expense->couple->users;
-        $payer     = $expense->payer;
-        // split_ratio = fração que o pagador cobre; o outro deve o restante
-        $otherShare = round($expense->amount * (1 - ($expense->split_ratio ?? 0.5)), 2);
+        $users = $expense->couple->users;
+        $payer = $expense->payer;
+        $installments = $expense->installments()->orderBy('installment_number')->get();
 
         foreach ($users as $user) {
             if ($user->id === $payer->id) {
                 continue;
             }
 
-            Balance::create([
-                'couple_id'       => $expense->couple_id,
-                'user_id'         => $payer->id,
-                'related_user_id' => $user->id,
-                'amount'          => $otherShare,
-                'used_amount'     => 0,
-                'type'            => 'credit',
-                'origin'          => 'expense',
-                'origin_table'    => 'expenses',
-                'origin_id'       => $expense->id,
-            ]);
+            if ($installments->isNotEmpty()) {
+                foreach ($installments as $installment) {
+                    $this->createBalancePair(
+                        $expense,
+                        $payer->id,
+                        $user->id,
+                        round($installment->amount * (1 - ($expense->split_ratio ?? 0.5)), 2),
+                        'expense_installments',
+                        $installment->id
+                    );
+                }
+            } else {
+                $this->createBalancePair(
+                    $expense,
+                    $payer->id,
+                    $user->id,
+                    round($expense->amount * (1 - ($expense->split_ratio ?? 0.5)), 2),
+                    'expenses',
+                    $expense->id
+                );
+            }
 
-            Balance::create([
-                'couple_id'       => $expense->couple_id,
-                'user_id'         => $user->id,
-                'related_user_id' => $payer->id,
-                'amount'          => $otherShare,
-                'used_amount'     => 0,
-                'type'            => 'debit',
-                'origin'          => 'expense',
-                'origin_table'    => 'expenses',
-                'origin_id'       => $expense->id,
-            ]);
+            ExpenseSplit::updateOrCreate(
+                ['expense_id' => $expense->id, 'user_id' => $user->id],
+                [
+                    'amount'  => round($expense->amount * (1 - ($expense->split_ratio ?? 0.5)), 2),
+                    'is_paid' => false,
+                ]
+            );
 
-            ExpenseSplit::create([
-                'expense_id' => $expense->id,
-                'user_id'    => $user->id,
-                'amount'     => $otherShare,
-                'is_paid'    => false,
-            ]);
-
-            // net out: payer's new credit against payer's existing debits
             $this->netBalances($payer->id, $user->id);
-            // net out: other's new debit against other's existing credits
             $this->netBalances($user->id, $payer->id);
         }
+    }
+
+    private function createBalancePair(Expense $expense, int $payerId, int $otherUserId, float $amount, string $originTable, int $originId): void
+    {
+        Balance::create([
+            'couple_id'       => $expense->couple_id,
+            'user_id'         => $payerId,
+            'related_user_id' => $otherUserId,
+            'amount'          => $amount,
+            'used_amount'     => 0,
+            'type'            => 'credit',
+            'origin'          => 'expense',
+            'origin_table'    => $originTable,
+            'origin_id'       => $originId,
+        ]);
+
+        Balance::create([
+            'couple_id'       => $expense->couple_id,
+            'user_id'         => $otherUserId,
+            'related_user_id' => $payerId,
+            'amount'          => $amount,
+            'used_amount'     => 0,
+            'type'            => 'debit',
+            'origin'          => 'expense',
+            'origin_table'    => $originTable,
+            'origin_id'       => $originId,
+        ]);
     }
 
     private function netBalances(int $userId, int $relatedUserId): void
     {
         DB::transaction(function () use ($userId, $relatedUserId) {
+            $dueInstallmentIds = ExpenseInstallment::whereNull('paid_at')
+                ->whereDate('due_date', '<=', Carbon::now()->endOfMonth())
+                ->pluck('id');
+
             $credits = Balance::where('user_id', $userId)
                 ->where('related_user_id', $relatedUserId)
                 ->where('type', 'credit')
                 ->whereColumn('used_amount', '<', 'amount')
+                ->where(function ($query) use ($dueInstallmentIds) {
+                    $query->where('origin_table', '!=', 'expense_installments')
+                        ->orWhereIn('origin_id', $dueInstallmentIds);
+                })
                 ->orderBy('created_at')
                 ->lockForUpdate()
                 ->get();
@@ -81,44 +112,58 @@ class ExpenseService
                 ->where('related_user_id', $relatedUserId)
                 ->where('type', 'debit')
                 ->whereColumn('used_amount', '<', 'amount')
+                ->where(function ($query) use ($dueInstallmentIds) {
+                    $query->where('origin_table', '!=', 'expense_installments')
+                        ->orWhereIn('origin_id', $dueInstallmentIds);
+                })
                 ->orderBy('created_at')
                 ->lockForUpdate()
                 ->get();
 
-            // track remaining locally — model objects go stale after increment()
             $cAvail = $credits->map(fn($c) => (float) $c->amount - (float) $c->used_amount)->toArray();
-            $dAvail = $debits->map(fn($d)  => (float) $d->amount - (float) $d->used_amount)->toArray();
+            $dAvail = $debits->map(fn($d) => (float) $d->amount - (float) $d->used_amount)->toArray();
 
             $di = 0;
             foreach ($credits as $ci => $credit) {
                 while ($cAvail[$ci] > 0.001 && $di < count($dAvail)) {
-                    if ($dAvail[$di] <= 0.001) { $di++; continue; }
+                    if ($dAvail[$di] <= 0.001) {
+                        $di++;
+                        continue;
+                    }
 
                     $consume = min($cAvail[$ci], $dAvail[$di]);
 
                     Balance::where('id', $credit->id)->increment('used_amount', $consume);
                     Balance::where('id', $debits[$di]->id)->increment('used_amount', $consume);
 
-                    $cAvail[$ci]  -= $consume;
-                    $dAvail[$di]  -= $consume;
+                    $cAvail[$ci] -= $consume;
+                    $dAvail[$di] -= $consume;
 
-                    if ($dAvail[$di] <= 0.001) $di++;
+                    if ($dAvail[$di] <= 0.001) {
+                        $di++;
+                    }
                 }
             }
         });
     }
 
-    public function createInstallments(Expense $expense, int $installments): void
+    public function createInstallments(Expense $expense, int $installments, int $paidInstallments = 0): void
     {
-        $perInstallment = round($expense->amount / $installments, 2);
+        $totalCents = (int) round($expense->amount * 100);
+        $baseCents = intdiv($totalCents, $installments);
+        $remainder = $totalCents % $installments;
         $baseDate = $expense->billing_date;
+        $paidInstallments = max(0, min($paidInstallments, $installments));
 
         for ($i = 1; $i <= $installments; $i++) {
+            $amount = ($baseCents + ($i <= $remainder ? 1 : 0)) / 100;
+
             ExpenseInstallment::create([
                 'expense_id'         => $expense->id,
                 'installment_number' => $i,
-                'amount'             => $perInstallment,
+                'amount'             => $amount,
                 'due_date'           => $baseDate->copy()->addMonths($i - 1),
+                'paid_at'            => $i <= $paidInstallments ? Carbon::now() : null,
             ]);
         }
     }

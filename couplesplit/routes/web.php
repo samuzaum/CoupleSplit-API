@@ -160,6 +160,12 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/installments', [InstallmentController::class, 'index'])
         ->name('installments.index');
+
+    Route::post('/installments/{installment}/mark-paid', [InstallmentController::class, 'markPaid'])
+        ->name('installments.mark-paid');
+
+    Route::post('/installments/{installment}/mark-unpaid', [InstallmentController::class, 'markUnpaid'])
+        ->name('installments.mark-unpaid');
     /*
     |--------------------------------------------------------------------------
     | Pagamentos

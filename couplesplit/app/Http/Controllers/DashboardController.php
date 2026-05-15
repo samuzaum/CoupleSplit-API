@@ -2,12 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Balance;
 use App\Models\Expense;
 use App\Services\PaymentService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Carbon;
-use App\Models\CoupleCategory;
 use App\Models\ExpenseInstallment;
 use App\Services\NotificationService;
 
@@ -32,66 +30,41 @@ class DashboardController extends Controller
             return view('dashboard-no-couple', ['waitingPartner' => true]);
         }
 
-        $netBalance = Balance::where('user_id', $user->id)
-            ->where('related_user_id', $partner->id)
-            ->get()
-            ->sum(function ($b) {
-                $remaining = $b->amount - $b->used_amount;
-                return $b->type === 'credit' ? $remaining : -$remaining;
-            });
+        $openBalances = $this->service->openBalances($user, $partner)->orderBy('created_at')->get();
 
-        $creditAvailable = Balance::where('user_id', $user->id)
-            ->where('related_user_id', $partner->id)
+        $netBalance = $openBalances->sum(function ($b) {
+            $remaining = $b->amount - $b->used_amount;
+            return $b->type === 'credit' ? $remaining : -$remaining;
+        });
+
+        $creditAvailable = $openBalances
             ->where('type', 'credit')
-            ->get()
             ->sum(fn($b) => $b->amount - $b->used_amount);
 
-        $debitAvailable = Balance::where('user_id', $user->id)
-            ->where('related_user_id', $partner->id)
+        $debitAvailable = $openBalances
             ->where('type', 'debit')
-            ->get()
             ->sum(fn($b) => $b->amount - $b->used_amount);
 
-        $openDebits = Balance::where('user_id', $user->id)
-            ->where('related_user_id', $partner->id)
-            ->where('type', 'debit')
-            ->whereColumn('used_amount', '<', 'amount')
-            ->orderBy('created_at')
-            ->get();
-
-        $openCredits = Balance::where('user_id', $user->id)
-            ->where('related_user_id', $partner->id)
-            ->where('type', 'credit')
-            ->whereColumn('used_amount', '<', 'amount')
-            ->orderBy('created_at')
-            ->get();
+        $openDebits = $openBalances->where('type', 'debit');
+        $openCredits = $openBalances->where('type', 'credit');
 
         $recentExpenses = Expense::where('couple_id', $couple->id)
             ->latest()
             ->take(5)
             ->get();
 
-        // despesas do mês atual que o usuário deve (não pagou)
-        $thisMonthExpenseIds = Expense::where('couple_id', $couple->id)
-            ->where('is_shared', true)
-            ->where('paid_by', '!=', $user->id)
-            ->whereYear('billing_date', Carbon::now()->year)
-            ->whereMonth('billing_date', Carbon::now()->month)
-            ->pluck('id');
-
-        $thisMonthDebit = Balance::where('user_id', $user->id)
-            ->where('related_user_id', $partner->id)
-            ->where('type', 'debit')
-            ->where('origin', 'expense')
-            ->whereIn('origin_id', $thisMonthExpenseIds)
-            ->sum('amount');
+        $thisMonthDebit = $debitAvailable;
 
         // dados para gráficos
-        $allExpenses = Expense::where('couple_id', $couple->id)->where('is_shared', true)->get();
+        $allExpenses = Expense::where('couple_id', $couple->id)
+            ->where('is_shared', true)
+            ->with('installments')
+            ->get();
 
         $byCategory = $allExpenses
             ->groupBy('category')
-            ->map(fn($g) => round($g->sum('amount'), 2))
+            ->map(fn($g) => round($g->sum(fn($expense) => $this->expenseMonthlyAmount($expense, Carbon::now())), 2))
+            ->filter(fn($total) => $total > 0)
             ->mapWithKeys(fn($total, $key) => [$key ?: 'Sem categoria' => $total]);
 
         $months = collect();
@@ -100,30 +73,18 @@ class DashboardController extends Controller
         }
 
         $byMonth = $months->mapWithKeys(function ($ym) use ($allExpenses) {
-            [$year, $month] = explode('-', $ym);
-            $total = $allExpenses->filter(fn($e) =>
-                $e->billing_date &&
-                $e->billing_date->year == $year &&
-                $e->billing_date->month == $month
-            )->sum('amount');
-            $label = Carbon::createFromFormat('Y-m', $ym)->translatedFormat('M/y');
+            $monthDate = Carbon::createFromFormat('Y-m', $ym)->startOfMonth();
+            $total = $allExpenses->sum(fn($expense) => $this->expenseMonthlyAmount($expense, $monthDate));
+            $label = $monthDate->translatedFormat('M/y');
             return [$label => round($total, 2)];
         });
 
         $customCats = $couple->categories()->pluck('name');
 
-        $coupleMonthTotal = Expense::where('couple_id', $couple->id)
-            ->where('is_shared', true)
-            ->whereYear('expense_date', Carbon::now()->year)
-            ->whereMonth('expense_date', Carbon::now()->month)
-            ->sum('amount');
+        $coupleMonthTotal = $this->sharedMonthlyTotal($couple->id, Carbon::now());
 
         $lastMonth = Carbon::now()->subMonth();
-        $lastMonthTotal = Expense::where('couple_id', $couple->id)
-            ->where('is_shared', true)
-            ->whereYear('expense_date', $lastMonth->year)
-            ->whereMonth('expense_date', $lastMonth->month)
-            ->sum('amount');
+        $lastMonthTotal = $this->sharedMonthlyTotal($couple->id, $lastMonth);
         $monthDelta = round($coupleMonthTotal - $lastMonthTotal, 2);
 
         $budgets = $couple->budgets()->get()->map(function ($budget) {
@@ -172,10 +133,7 @@ class DashboardController extends Controller
         $user    = Auth::user();
         $couple  = $user->currentCoupleOrFail();
         $partner = $couple->users()->where('users.id', '!=', $user->id)->firstOrFail();
-
-        // usa dívida líquida (créditos já abatidos dos débitos)
-        $netBalance = Balance::where('user_id', $user->id)
-            ->where('related_user_id', $partner->id)
+        $netBalance = $this->service->openBalances($user, $partner)
             ->get()
             ->sum(fn($b) => $b->type === 'credit'
                 ? $b->amount - $b->used_amount
@@ -189,4 +147,34 @@ class DashboardController extends Controller
 
         return redirect()->route('dashboard')->with('success', 'Dívida liquidada!');
     }
+
+    private function sharedMonthlyTotal(int $coupleId, Carbon $month): float
+    {
+        return round(Expense::where('couple_id', $coupleId)
+            ->where('is_shared', true)
+            ->with('installments')
+            ->get()
+            ->sum(fn($expense) => $this->expenseMonthlyAmount($expense, $month)), 2);
+    }
+
+    private function expenseMonthlyAmount(Expense $expense, Carbon $month): float
+    {
+        if ($expense->installments->isNotEmpty()) {
+            return (float) $expense->installments
+                ->filter(fn($installment) =>
+                    $installment->due_date &&
+                    $installment->due_date->isSameMonth($month)
+                )
+                ->sum('amount');
+        }
+
+        $date = $expense->billing_date ?: $expense->expense_date;
+
+        if (!$date || !$date->isSameMonth($month)) {
+            return 0.0;
+        }
+
+        return (float) $expense->amount;
+    }
+
 }

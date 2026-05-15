@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Balance;
 use App\Models\Expense;
+use App\Models\ExpenseInstallment;
 use App\Models\Payment;
 use App\Services\ActivityService;
 use App\Services\PaymentService;
@@ -29,38 +29,51 @@ class PaymentController extends Controller
                 ->with('error', 'Seu parceiro(a) ainda não aceitou o convite.');
         }
 
-        $openDebits = Balance::where('user_id', $user->id)
-            ->where('related_user_id', $partner->id)
+        $openDebits = $this->service->openBalances($user, $partner)
             ->where('type', 'debit')
-            ->whereColumn('used_amount', '<', 'amount')
             ->orderBy('created_at')
             ->get();
 
         $personalUnpaid = Expense::where('couple_id', $couple->id)
             ->where('is_shared', false)
             ->where('paid_by', $user->id)
+            ->whereDoesntHave('installments')
             ->whereNull('paid_at')
             ->orderBy('expense_date')
             ->get();
 
+        $personalInstallments = ExpenseInstallment::whereHas('expense', function ($query) use ($couple, $user) {
+                $query->where('couple_id', $couple->id)
+                    ->where('paid_by', $user->id)
+                    ->where('is_shared', false);
+            })
+            ->whereNull('paid_at')
+            ->whereDate('due_date', '<=', Carbon::now()->endOfMonth())
+            ->with('expense.card')
+            ->orderBy('due_date')
+            ->get();
+
         return view('payments.create', [
-            'partner'        => $partner,
-            'openDebits'     => $openDebits,
-            'personalUnpaid' => $personalUnpaid,
+            'partner'              => $partner,
+            'openDebits'           => $openDebits,
+            'personalUnpaid'       => $personalUnpaid,
+            'personalInstallments' => $personalInstallments,
         ]);
     }
 
     public function store(Request $request)
     {
         $request->validate([
-            'payment_type' => 'required|in:partner,personal',
-            'amount'       => 'required_if:payment_type,partner|nullable|numeric|min:0.01',
-            'expense_ids'  => 'required_if:payment_type,personal|nullable|array',
-            'expense_ids.*'=> 'exists:expenses,id',
+            'payment_type'       => 'required|in:partner,personal',
+            'amount'             => 'required_if:payment_type,partner|nullable|numeric|min:0.01',
+            'expense_ids'        => 'nullable|array',
+            'expense_ids.*'      => 'exists:expenses,id',
+            'installment_ids'    => 'nullable|array',
+            'installment_ids.*'  => 'exists:expense_installments,id',
         ]);
 
-        $user    = Auth::user();
-        $couple  = $user->currentCoupleOrFail();
+        $user   = Auth::user();
+        $couple = $user->currentCoupleOrFail();
 
         if ($request->payment_type === 'partner') {
             $partner = $couple->users()->where('users.id', '!=', $user->id)->first();
@@ -68,6 +81,7 @@ class PaymentController extends Controller
                 return redirect()->route('dashboard')
                     ->with('error', 'Seu parceiro(a) ainda não aceitou o convite.');
             }
+
             $this->service->process($user, $couple, $partner, (float) $request->amount);
 
             $formatted = number_format((float) $request->amount, 2, ',', '.');
@@ -77,18 +91,34 @@ class PaymentController extends Controller
             return redirect()->route('dashboard')->with('success', 'Pagamento registrado com sucesso!');
         }
 
-        // personal: marca as despesas selecionadas como pagas
-        $ids = $request->expense_ids ?? [];
-        Expense::whereIn('id', $ids)
+        $expenseIds = $request->expense_ids ?? [];
+        $installmentIds = $request->installment_ids ?? [];
+
+        if (empty($expenseIds) && empty($installmentIds)) {
+            return back()->withErrors(['payment' => 'Selecione pelo menos uma despesa ou parcela.']);
+        }
+
+        Expense::whereIn('id', $expenseIds)
             ->where('couple_id', $couple->id)
             ->where('paid_by', $user->id)
             ->where('is_shared', false)
+            ->whereDoesntHave('installments')
             ->update(['paid_at' => Carbon::now()]);
 
-        $this->activity->log($user, $couple->id, 'payment', 'expense', null,
-            "Marcou " . count($ids) . " despesa(s) pessoal(is) como pagas");
+        ExpenseInstallment::whereIn('id', $installmentIds)
+            ->whereHas('expense', function ($query) use ($couple, $user) {
+                $query->where('couple_id', $couple->id)
+                    ->where('paid_by', $user->id)
+                    ->where('is_shared', false);
+            })
+            ->whereDate('due_date', '<=', Carbon::now()->endOfMonth())
+            ->update(['paid_at' => Carbon::now()]);
 
-        return redirect()->route('expenses.index')->with('success', 'Despesas pessoais marcadas como pagas!');
+        $count = count($expenseIds) + count($installmentIds);
+        $this->activity->log($user, $couple->id, 'payment', 'expense', null,
+            "Marcou {$count} item(ns) pessoal(is) como pagos");
+
+        return redirect()->route('payments.create')->with('success', 'Itens pessoais marcados como pagos!');
     }
 
     public function index(Request $request)
