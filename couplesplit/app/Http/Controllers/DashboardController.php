@@ -175,19 +175,37 @@ class DashboardController extends Controller
                  ->with('expense')
                  ->get();
 
-                $totalBill = round($installments->sum('amount'), 2);
+                $singleExpenses = Expense::where('couple_id', $couple->id)
+                    ->where('card_id', $card->id)
+                    ->whereDoesntHave('installments')
+                    ->whereYear('billing_date', $nextClosing->year)
+                    ->whereMonth('billing_date', $nextClosing->month)
+                    ->where(function ($q) {
+                        $q->where('is_shared', true)->orWhereNull('paid_at');
+                    })
+                    ->get();
 
-                $myCost = round($installments->sum(function ($inst) {
-                    return $inst->expense->is_shared
+                $totalBill = round(
+                    $installments->sum('amount') + $singleExpenses->sum('amount'),
+                    2
+                );
+
+                $myCost = round(
+                    $installments->sum(fn($inst) => $inst->expense->is_shared
                         ? $inst->amount * ($inst->expense->split_ratio ?? 0.5)
-                        : $inst->amount;
-                }), 2);
+                        : $inst->amount
+                    ) + $singleExpenses->sum(fn($exp) => $exp->is_shared
+                        ? $exp->amount * ($exp->split_ratio ?? 0.5)
+                        : $exp->amount
+                    ),
+                    2
+                );
 
                 return (object) [
-                    'card'         => $card,
-                    'next_closing' => $nextClosing,
-                    'total_bill'   => $totalBill,
-                    'my_cost'      => $myCost,
+                    'card'          => $card,
+                    'next_closing'  => $nextClosing,
+                    'total_bill'    => $totalBill,
+                    'my_cost'       => $myCost,
                     'partner_share' => round($totalBill - $myCost, 2),
                 ];
             })

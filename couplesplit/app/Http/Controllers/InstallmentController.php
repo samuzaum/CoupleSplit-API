@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Expense;
 use App\Models\ExpenseInstallment;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -52,14 +53,27 @@ class InstallmentController extends Controller
                 ->orderBy('id')
                 ->get();
 
+                $singleExpenses = Expense::where('couple_id', $couple->id)
+                    ->where('card_id', $card->id)
+                    ->whereDoesntHave('installments')
+                    ->whereYear('billing_date', $nextClosing->year)
+                    ->whereMonth('billing_date', $nextClosing->month)
+                    ->where(function ($q) {
+                        $q->where('is_shared', true)->orWhereNull('paid_at');
+                    })
+                    ->get();
+
+                $total = round($installments->sum('amount') + $singleExpenses->sum('amount'), 2);
+
                 return (object) [
-                    'card'         => $card,
-                    'next_closing' => $nextClosing,
-                    'total'        => round($installments->sum('amount'), 2),
-                    'installments' => $installments,
+                    'card'            => $card,
+                    'next_closing'    => $nextClosing,
+                    'total'           => $total,
+                    'installments'    => $installments,
+                    'single_expenses' => $singleExpenses,
                 ];
             })
-            ->filter(fn($f) => $f->installments->isNotEmpty());
+            ->filter(fn($f) => $f->total > 0);
     }
 
     public function markPaid(ExpenseInstallment $installment)

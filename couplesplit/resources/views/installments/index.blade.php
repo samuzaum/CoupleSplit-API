@@ -22,6 +22,15 @@
     </div>
     <div class="w-full border-t border-gray-100 dark:border-gray-800"></div>
     <div class="space-y-2">
+    @foreach ($fatura->single_expenses as $exp)
+    <div class="flex items-center justify-between text-sm gap-4">
+        <div class="min-w-0">
+            <p class="text-black dark:text-white truncate">{{ $exp->description }}</p>
+            <p class="text-xs text-gray-400">avulso{{ $exp->is_shared ? ' · compartilhado' : '' }}</p>
+        </div>
+        <span class="shrink-0 text-gray-700 dark:text-gray-300">R$ {{ number_format($exp->amount, 2, ',', '.') }}</span>
+    </div>
+    @endforeach
     @foreach ($fatura->installments as $inst)
     <div class="flex items-center justify-between text-sm gap-4">
         <div class="min-w-0">
