@@ -5,6 +5,38 @@
 
 <h1 class="text-3xl font-bold text-black dark:text-white">Parcelas</h1>
 
+@if ($faturas->isNotEmpty())
+<div class="space-y-3">
+<p class="text-xs font-semibold uppercase tracking-wide text-gray-400 px-1">Proxima fatura por cartao</p>
+@foreach ($faturas as $fatura)
+<div class="bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-2xl px-5 py-4 space-y-3">
+    <div class="flex items-center justify-between">
+        <div>
+            <p class="font-semibold text-black dark:text-white">{{ $fatura->card->name }}</p>
+            <p class="text-xs text-gray-400 mt-0.5">fecha {{ $fatura->next_closing->format('d/m/Y') }}</p>
+        </div>
+        <div class="text-right">
+            <p class="text-lg font-bold text-black dark:text-white">R$ {{ number_format($fatura->total, 2, ',', '.') }}</p>
+            <p class="text-xs text-gray-400">{{ $fatura->installments->count() }} parcela(s)</p>
+        </div>
+    </div>
+    <div class="w-full border-t border-gray-100 dark:border-gray-800"></div>
+    <div class="space-y-2">
+    @foreach ($fatura->installments as $inst)
+    <div class="flex items-center justify-between text-sm gap-4">
+        <div class="min-w-0">
+            <p class="text-black dark:text-white truncate">{{ $inst->expense->description }}</p>
+            <p class="text-xs text-gray-400">parcela {{ $inst->installment_number }}</p>
+        </div>
+        <span class="shrink-0 text-gray-700 dark:text-gray-300">R$ {{ number_format($inst->amount, 2, ',', '.') }}</span>
+    </div>
+    @endforeach
+    </div>
+</div>
+@endforeach
+</div>
+@endif
+
 @if ($installments->isEmpty())
 <div class="bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-2xl p-8 text-center">
     <p class="text-gray-500 text-sm">Nenhuma parcela registrada.</p>
