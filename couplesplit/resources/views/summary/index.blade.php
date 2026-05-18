@@ -30,14 +30,14 @@
     <div class="bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-2xl p-5 text-center">
         <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">Total conjunto</p>
         <p class="text-xl font-bold text-black dark:text-white">
-            R$ {{ number_format($shared->sum('amount'), 2, ',', '.') }}
+            R$ {{ number_format($sharedTotal, 2, ',', '.') }}
         </p>
         <p class="text-xs text-gray-500 mt-1">{{ $shared->count() }} despesa{{ $shared->count() !== 1 ? 's' : '' }}</p>
     </div>
     <div class="bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-2xl p-5 text-center">
         <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">Pessoal (você)</p>
         <p class="text-xl font-bold text-black dark:text-white">
-            R$ {{ number_format($personal->where('paid_by', auth()->id())->sum('amount'), 2, ',', '.') }}
+            R$ {{ number_format($personalTotal, 2, ',', '.') }}
         </p>
         <p class="text-xs text-gray-500 mt-1">{{ $personal->where('paid_by', auth()->id())->count() }} despesa{{ $personal->where('paid_by', auth()->id())->count() !== 1 ? 's' : '' }}</p>
     </div>

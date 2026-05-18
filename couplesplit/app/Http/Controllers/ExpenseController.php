@@ -5,11 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\Balance;
 use App\Models\CoupleBudget;
 use App\Models\Expense;
+use App\Models\ExpenseInstallment;
 use App\Models\ExpenseSplit;
 use App\Services\ActivityService;
 use App\Services\ExpenseService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Carbon\Carbon;
 
 class ExpenseController extends Controller
@@ -19,6 +21,7 @@ class ExpenseController extends Controller
     public function create()
     {
         $user       = Auth::user();
+        $cards      = $user->cards;
         $couple     = $user->currentCouple();
         $customCats = $couple ? $couple->categories()->pluck('name') : collect();
 
@@ -31,68 +34,61 @@ class ExpenseController extends Controller
             $incomeRatio = round($myIncome / ($myIncome + $partnerIncome) * 100);
         }
 
-        $myCards      = $user->cards;
-        $partnerCards = $partner?->cards ?? collect();
-
-        return view('expenses.create', compact('myCards', 'partnerCards', 'customCats', 'myIncome', 'partnerIncome', 'incomeRatio', 'partner'));
+        return view('expenses.create', compact('cards', 'customCats', 'myIncome', 'partnerIncome', 'incomeRatio', 'partner'));
     }
 
     public function store(Request $request)
     {
         $request->validate([
-            'description'    => 'required|string|max:255',
-            'notes'          => 'nullable|string|max:1000',
-            'amount'         => 'required|numeric|min:0.01',
-            'expense_date'   => 'required|date',
-            'card_id'        => 'nullable|exists:cards,id',
-            'is_shared'      => 'required|boolean',
-            'split_ratio'    => 'nullable|integer|min:1|max:99',
-            'is_recurring'   => 'nullable|boolean',
-            'installments'   => 'nullable|integer|min:1|max:48',
-            'category'       => 'required|string',
-            'paid_by_partner'=> 'nullable|boolean',
-            'benefit_id'     => 'nullable|exists:user_benefits,id',
+            'description'  => 'required|string|max:255',
+            'notes'        => 'nullable|string|max:1000',
+            'amount'       => 'required|numeric|min:0.01',
+            'expense_date' => 'required|date',
+            'card_id'      => ['nullable', Rule::exists('cards', 'id')->where('user_id', Auth::id())],
+            'is_shared'    => 'required|boolean',
+            'split_ratio'  => 'nullable|integer|min:1|max:99',
+            'is_recurring' => 'nullable|boolean',
+            'installments' => 'nullable|integer|min:1|max:48',
+            'paid_installments' => 'nullable|integer|min:0|max:48',
+            'category'     => 'nullable|string',
         ]);
 
         $user   = Auth::user();
         $couple = $user->currentCoupleOrFail();
 
-        // Quem pagou — padrão é o próprio usuário
-        $partner = $couple->users()->where('users.id', '!=', $user->id)->first();
-        $paidBy  = $request->boolean('paid_by_partner') && $partner ? $partner->id : $user->id;
-
         $expenseDate = Carbon::parse($request->expense_date);
         $billingDate = $this->service->calculateBillingDate($request->card_id, $expenseDate);
         $splitRatio  = $request->is_shared ? round(($request->split_ratio ?? 50) / 100, 4) : 1.0;
 
-        // Benefício ou pix/dinheiro = pago na hora, sem débito entre o casal
-        $hasBenefit = $request->filled('benefit_id');
-        $paidAt     = ($hasBenefit || !$request->card_id) ? now() : null;
-        $isShared   = $hasBenefit ? false : $request->is_shared;
-
         $expense = Expense::create([
             'couple_id'    => $couple->id,
-            'paid_by'      => $paidBy,
-            'card_id'      => $hasBenefit ? null : $request->card_id,
-            'benefit_id'   => $request->benefit_id,
+            'paid_by'      => $user->id,
+            'card_id'      => $request->card_id,
             'description'  => $request->description,
             'notes'        => $request->notes,
             'category'     => $request->category,
             'amount'       => $request->amount,
             'expense_date' => $expenseDate,
             'billing_date' => $billingDate,
-            'is_shared'    => $isShared,
+            'is_shared'    => $request->is_shared,
             'split_ratio'  => $splitRatio,
             'is_recurring' => $request->boolean('is_recurring'),
-            'paid_at'      => $paidAt,
         ]);
 
-        $this->service->createBalances($expense);
-
         $installments = (int) ($request->installments ?? 1);
-        if ($installments > 1) {
-            $this->service->createInstallments($expense, $installments);
+        $paidInstallments = (int) ($request->paid_installments ?? 0);
+        if ($paidInstallments > $installments) {
+            return back()
+                ->withErrors(['paid_installments' => 'As parcelas ja quitadas nao podem ser maiores que o total de parcelas.'])
+                ->withInput();
         }
+
+        if ($installments > 1) {
+            $this->service->createInstallments($expense, $installments, $paidInstallments);
+            $expense->load('installments');
+        }
+
+        $this->service->createBalances($expense);
 
         $this->activity->log($user, $couple->id, 'created', 'expense', $expense->id,
             "Criou a despesa \"{$expense->description}\" (R$ " . number_format($expense->amount, 2, ',', '.') . ")");
@@ -104,12 +100,7 @@ class ExpenseController extends Controller
                 ->where('category', $expense->category)
                 ->first();
             if ($budget) {
-                $spent = Expense::where('couple_id', $couple->id)
-                    ->where('is_shared', true)
-                    ->where('category', $expense->category)
-                    ->whereYear('expense_date', Carbon::now()->year)
-                    ->whereMonth('expense_date', Carbon::now()->month)
-                    ->sum('amount');
+                $spent = $budget->spentThisMonth();
                 if ($spent > $budget->amount) {
                     $over = number_format($spent - $budget->amount, 2, ',', '.');
                     $redirect = $redirect->with('budget_warning',
@@ -130,10 +121,7 @@ class ExpenseController extends Controller
 
         $cards      = $user->cards;
         $customCats = $couple->categories()->pluck('name');
-        $hasPayments  = Balance::where('origin', 'expense')
-            ->where('origin_id', $expense->id)
-            ->where('used_amount', '>', 0)
-            ->exists();
+        $hasPayments  = $this->hasExpensePayments($expense);
 
         return view('expenses.edit', compact('expense', 'cards', 'hasPayments', 'customCats'));
     }
@@ -145,10 +133,7 @@ class ExpenseController extends Controller
 
         abort_if($expense->couple_id !== $couple->id, 403);
 
-        $hasPayments = Balance::where('origin', 'expense')
-            ->where('origin_id', $expense->id)
-            ->where('used_amount', '>', 0)
-            ->exists();
+        $hasPayments = $this->hasExpensePayments($expense);
 
         if ($hasPayments) {
             $request->validate([
@@ -162,18 +147,21 @@ class ExpenseController extends Controller
                 'notes'        => 'nullable|string|max:1000',
                 'amount'       => 'required|numeric|min:0.01',
                 'expense_date' => 'required|date',
-                'card_id'      => 'nullable|exists:cards,id',
+                'card_id'      => ['nullable', Rule::exists('cards', 'id')->where('user_id', Auth::id())],
                 'is_shared'    => 'required|boolean',
                 'split_ratio'  => 'nullable|integer|min:1|max:99',
                 'is_recurring' => 'nullable|boolean',
-                'category'     => 'required|string',
+                'category'     => 'nullable|string',
             ]);
 
             $expenseDate = Carbon::parse($request->expense_date);
             $billingDate = $this->service->calculateBillingDate($request->card_id, $expenseDate);
             $splitRatio  = $request->is_shared ? round(($request->split_ratio ?? 50) / 100, 4) : 1.0;
 
-            Balance::where('origin', 'expense')->where('origin_id', $expense->id)->delete();
+            $installmentCount = $expense->installments()->count();
+            $paidInstallmentCount = $expense->installments()->whereNotNull('paid_at')->count();
+
+            $this->deleteExpenseBalances($expense);
             ExpenseSplit::where('expense_id', $expense->id)->delete();
 
             $expense->update([
@@ -189,7 +177,12 @@ class ExpenseController extends Controller
                 'is_recurring' => $request->boolean('is_recurring'),
             ]);
 
-            $expense->refresh();
+            if ($installmentCount > 1) {
+                $expense->installments()->delete();
+                $this->service->createInstallments($expense, $installmentCount, $paidInstallmentCount);
+            }
+
+            $expense->refresh()->load('installments');
             $this->service->createBalances($expense);
         }
 
@@ -208,10 +201,7 @@ class ExpenseController extends Controller
 
         abort_if($expense->couple_id !== $couple->id, 403);
 
-        $hasPayments = Balance::where('origin', 'expense')
-            ->where('origin_id', $expense->id)
-            ->where('used_amount', '>', 0)
-            ->exists();
+        $hasPayments = $this->hasExpensePayments($expense);
 
         if ($hasPayments) {
             return redirect()
@@ -220,7 +210,7 @@ class ExpenseController extends Controller
         }
 
         $desc = $expense->description;
-        Balance::where('origin', 'expense')->where('origin_id', $expense->id)->delete();
+        $this->deleteExpenseBalances($expense);
         ExpenseSplit::where('expense_id', $expense->id)->delete();
         $expense->installments()->delete();
         $expense->delete();
@@ -401,6 +391,42 @@ class ExpenseController extends Controller
         ] + $this->balanceMaps($user, $couple));
     }
 
+
+    private function hasExpensePayments(Expense $expense): bool
+    {
+        $installmentIds = $expense->installments()->pluck('id');
+
+        return Balance::where('origin', 'expense')
+            ->where('used_amount', '>', 0)
+            ->where(function ($query) use ($expense, $installmentIds) {
+                $query->where(function ($expenseBalance) use ($expense) {
+                    $expenseBalance->where('origin_table', 'expenses')
+                        ->where('origin_id', $expense->id);
+                })->orWhere(function ($installmentBalance) use ($installmentIds) {
+                    $installmentBalance->where('origin_table', 'expense_installments')
+                        ->whereIn('origin_id', $installmentIds);
+                });
+            })
+            ->exists();
+    }
+
+    private function deleteExpenseBalances(Expense $expense): void
+    {
+        $installmentIds = $expense->installments()->pluck('id');
+
+        Balance::where('origin', 'expense')
+            ->where(function ($query) use ($expense, $installmentIds) {
+                $query->where(function ($expenseBalance) use ($expense) {
+                    $expenseBalance->where('origin_table', 'expenses')
+                        ->where('origin_id', $expense->id);
+                })->orWhere(function ($installmentBalance) use ($installmentIds) {
+                    $installmentBalance->where('origin_table', 'expense_installments')
+                        ->whereIn('origin_id', $installmentIds);
+                });
+            })
+            ->delete();
+    }
+
     private function balanceMaps($user, $couple): array
     {
         $partner = $couple->users()->where('users.id', '!=', $user->id)->first();
@@ -412,15 +438,44 @@ class ExpenseController extends Controller
             ->where('related_user_id', $partner->id)
             ->where('type', 'credit')
             ->where('origin', 'expense')
-            ->get()->keyBy('origin_id');
+            ->get();
 
         $myDebits = Balance::where('user_id', $user->id)
             ->where('related_user_id', $partner->id)
             ->where('type', 'debit')
             ->where('origin', 'expense')
-            ->get()->keyBy('origin_id');
+            ->get();
+
+        $myCredits = $this->balancesByExpense($myCredits);
+        $myDebits = $this->balancesByExpense($myDebits);
 
         return compact('myCredits', 'myDebits');
+    }
+
+    private function balancesByExpense($balances)
+    {
+        $installmentIds = $balances
+            ->where('origin_table', 'expense_installments')
+            ->pluck('origin_id')
+            ->unique();
+
+        $installmentExpenseIds = $installmentIds->isEmpty()
+            ? collect()
+            : ExpenseInstallment::whereIn('id', $installmentIds)->pluck('expense_id', 'id');
+
+        return $balances
+            ->groupBy(function ($balance) use ($installmentExpenseIds) {
+                return $balance->origin_table === 'expense_installments'
+                    ? $installmentExpenseIds->get($balance->origin_id)
+                    : $balance->origin_id;
+            })
+            ->filter(fn($group, $expenseId) => $expenseId !== null)
+            ->map(function ($group) {
+                return (object) [
+                    'amount'      => $group->sum(fn($balance) => (float) $balance->amount),
+                    'used_amount' => $group->sum(fn($balance) => (float) $balance->used_amount),
+                ];
+            });
     }
 
     private function applyFilters($query, Request $request)

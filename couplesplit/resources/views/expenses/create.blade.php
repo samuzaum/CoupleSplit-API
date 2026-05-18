@@ -89,6 +89,7 @@ resize-none
 
 {{-- valor --}}
 <input
+id="expense_amount"
 name="amount"
 type="number"
 step="0.01"
@@ -126,7 +127,6 @@ text-black dark:text-white
 {{-- categoria --}}
 <select
 name="category"
-required
 class="
 w-full
 px-4 py-3
@@ -135,7 +135,7 @@ border border-gray-300 dark:border-gray-700
 bg-white dark:bg-black
 text-black dark:text-white
 ">
-<option value="" disabled selected>Selecione uma categoria</option>
+<option value="">Categoria (opcional)</option>
 @foreach (\App\Models\Expense::CATEGORIES as $cat)
 <option value="{{ $cat }}" {{ old('category') === $cat ? 'selected' : '' }}>{{ $cat }}</option>
 @endforeach
@@ -149,30 +149,11 @@ text-black dark:text-white
 </select>
 
 
-{{-- quem pagou (opcional, padrão = você) --}}
-@if ($partner)
-<input type="hidden" name="paid_by_partner" id="paid_by_partner_input" value="0">
-<div class="flex items-center justify-between">
-    <span class="text-sm text-gray-500 dark:text-gray-400">Quem pagou?</span>
-    <div class="flex rounded-full border border-gray-300 dark:border-gray-700 overflow-hidden text-sm font-medium">
-        <button type="button" id="payer_me"
-            onclick="setPayer('me')"
-            class="px-4 py-1.5 bg-black text-white dark:bg-white dark:text-black transition">
-            Eu
-        </button>
-        <button type="button" id="payer_partner"
-            onclick="setPayer('partner')"
-            class="px-4 py-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition">
-            {{ $partner->name }}
-        </button>
-    </div>
-</div>
-@endif
-
 {{-- cartão --}}
 <select
 id="card_select"
 name="card_id"
+
 class="
 w-full
 px-4 py-3
@@ -181,60 +162,23 @@ border border-gray-300 dark:border-gray-700
 bg-white dark:bg-black
 text-black dark:text-white
 ">
-<option value="" data-type="" data-owner="me">Sem cartão (dinheiro / pix)</option>
 
-@foreach ($myCards as $card)
-<option value="{{ $card->id }}" data-type="{{ $card->type }}" data-owner="me">
-    {{ $card->name }} ({{ ucfirst($card->type) }})
+<option value="" data-type="">
+Sem cartão (dinheiro / pix)
 </option>
+
+@foreach ($cards as $card)
+
+<option value="{{ $card->id }}" data-type="{{ $card->type }}">
+
+{{ $card->name }} ({{ ucfirst($card->type) }})
+
+</option>
+
 @endforeach
 
-@if ($partnerCards->isNotEmpty())
-<optgroup id="partner_cards_group" label="Cartões de {{ $partner->name ?? 'parceiro(a)' }}" class="hidden">
-    @foreach ($partnerCards as $card)
-    <option value="{{ $card->id }}" data-type="{{ $card->type }}" data-owner="partner" class="partner-card-option hidden">
-        {{ $card->name }} ({{ ucfirst($card->type) }})
-    </option>
-    @endforeach
-</optgroup>
-@endif
 </select>
 
-
-{{-- benefício (opcional) --}}
-@php
-    $coupleId   = auth()->user()->currentCouple()?->id;
-    $myBenefits = \App\Models\UserBenefit::where('user_id', auth()->id())
-        ->orWhere(fn($q) => $q->where('is_couple', true)->where('couple_id', $coupleId))
-        ->get();
-@endphp
-@if ($myBenefits->isNotEmpty())
-<div>
-    <label class="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-        <input type="checkbox" id="use_benefit_check" class="rounded border-gray-300"
-            onchange="toggleBenefit(this.checked)">
-        Pago com benefício
-    </label>
-    <div id="benefit_select_wrapper" class="mt-3 hidden">
-        <select name="benefit_id" id="benefit_select"
-            class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-black text-black dark:text-white">
-            <option value="">Selecione o benefício</option>
-            @foreach ($myBenefits as $b)
-            <option value="{{ $b->id }}"
-                data-remaining="{{ $b->remainingThisMonth() }}">
-                {{ $b->name }}
-                — saldo: R$ {{ number_format($b->remainingThisMonth(), 2, ',', '.') }}
-            </option>
-            @endforeach
-        </select>
-    </div>
-</div>
-@endif
-
-{{-- aviso pix/dinheiro --}}
-<div id="pix_notice" class="text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-4 py-3">
-    ✓ Pix / dinheiro — será marcado como <strong>pago</strong> automaticamente.
-</div>
 
 {{-- parcelas (visível só com cartão de crédito) --}}
 <div id="installments_wrapper" style="display:none">
@@ -256,6 +200,27 @@ bg-white dark:bg-black
 text-black dark:text-white
 "
 />
+<input
+id="paid_installments_input"
+name="paid_installments"
+type="number"
+min="0"
+max="48"
+value="{{ old('paid_installments', 0) }}"
+placeholder="Parcelas ja quitadas antes do cadastro"
+class="
+w-full
+mt-3
+px-4 py-3
+rounded-xl
+border border-gray-300 dark:border-gray-700
+bg-white dark:bg-black
+text-black dark:text-white
+"
+/>
+<p class="mt-2 text-xs text-gray-400">
+Use para compras antigas: essas parcelas ficam fora das dividas em aberto.
+</p>
 </div>
 
 <script>
@@ -263,65 +228,21 @@ text-black dark:text-white
     var select  = document.getElementById('card_select');
     var wrapper = document.getElementById('installments_wrapper');
     var input   = document.getElementById('installments_input');
-    var notice  = document.getElementById('pix_notice');
+    var paidInput = document.getElementById('paid_installments_input');
 
     function toggle() {
-        var opt      = select.options[select.selectedIndex];
-        var type     = opt ? opt.dataset.type : '';
+        var type = select.options[select.selectedIndex].dataset.type;
         var isCredit = type === 'credit';
-        var hasCard  = select.value !== '';
-
         wrapper.style.display = isCredit ? '' : 'none';
-        notice.style.display  = hasCard ? 'none' : '';
-
-        if (!isCredit) input.value = 1;
+        if (!isCredit) {
+            input.value = 1;
+            paidInput.value = 0;
+        }
     }
 
     select.addEventListener('change', toggle);
     toggle();
 })();
-
-function toggleBenefit(checked) {
-    var wrapper = document.getElementById('benefit_select_wrapper');
-    if (wrapper) wrapper.classList.toggle('hidden', !checked);
-
-    // Quando usar benefício: força "sem cartão" e desmarca compartilhada
-    if (checked) {
-        var cardSelect = document.getElementById('card_select');
-        if (cardSelect) { cardSelect.value = ''; cardSelect.dispatchEvent(new Event('change')); }
-
-        var sharedCheck = document.getElementById('is_shared_check');
-        if (sharedCheck) { sharedCheck.checked = false; toggleSplitRatio(); }
-    }
-}
-
-function setPayer(who) {
-    var isPartner = who === 'partner';
-
-    document.getElementById('paid_by_partner_input').value = isPartner ? '1' : '0';
-
-    // Estilo dos botões
-    var activeClass   = 'px-4 py-1.5 bg-black text-white dark:bg-white dark:text-black transition';
-    var inactiveClass = 'px-4 py-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition';
-    document.getElementById('payer_me').className      = isPartner ? inactiveClass : activeClass;
-    document.getElementById('payer_partner').className = isPartner ? activeClass    : inactiveClass;
-
-    // Mostra/esconde cartões do parceiro
-    var partnerGroup = document.getElementById('partner_cards_group');
-    document.querySelectorAll('.partner-card-option').forEach(function(opt) {
-        opt.hidden = !isPartner;
-    });
-    if (partnerGroup) partnerGroup.hidden = !isPartner;
-
-    // Esconde/mostra cartões do próprio usuário
-    document.querySelectorAll('[data-owner="me"]').forEach(function(opt) {
-        opt.hidden = isPartner && opt.value !== '';
-    });
-
-    // Reset seleção pro primeiro disponível
-    select.value = '';
-    select.dispatchEvent(new Event('change'));
-}
 </script>
 
 
@@ -370,6 +291,21 @@ Despesa compartilhada
     class="w-full"
 />
 
+<div class="grid sm:grid-cols-2 gap-3 mt-3">
+    <div>
+        <label class="block text-xs text-gray-500 mb-1">Sua parte em R$</label>
+        <input id="split_amount_input" type="number" step="0.01" min="0" placeholder="Ex: 120.00"
+            oninput="updateRatioFromAmount(this.value)"
+            class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-black text-black dark:text-white">
+    </div>
+    <div>
+        <label class="block text-xs text-gray-500 mb-1">Parte do parceiro em R$</label>
+        <input id="split_other_amount" type="text" readonly
+            class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 text-gray-500">
+    </div>
+</div>
+<p class="mt-2 text-xs text-gray-400">O valor digitado ajusta a porcentagem automaticamente.</p>
+
 @if ($incomeRatio)
 <button type="button" onclick="applyIncomeRatio({{ $incomeRatio }})"
     class="mt-2 text-xs px-3 py-1 rounded-full border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-black dark:hover:border-white">
@@ -396,11 +332,36 @@ Despesa recorrente (repete todo mês)
 </label>
 
 <script>
+function money(value) {
+    return 'R$ ' + value.toFixed(2).replace('.', ',');
+}
+function totalAmount() {
+    return parseFloat(document.getElementById('expense_amount').value || '0');
+}
+function syncSplitAmounts() {
+    var total = totalAmount();
+    var ratio = parseInt(document.getElementById('split_ratio_input').value || '50');
+    var mine = total > 0 ? total * ratio / 100 : 0;
+    var other = Math.max(0, total - mine);
+    var mineInput = document.getElementById('split_amount_input');
+    var otherInput = document.getElementById('split_other_amount');
+    if (mineInput && document.activeElement !== mineInput) {
+        mineInput.value = total > 0 ? mine.toFixed(2) : '';
+    }
+    if (otherInput) otherInput.value = total > 0 ? money(other) : '';
+}
 function updateRatio(val) {
-    val = parseInt(val);
+    val = Math.max(1, Math.min(99, parseInt(val || 50)));
     document.getElementById('ratio_display').textContent = val;
-    document.getElementById('ratio_other').textContent   = 100 - val;
-    document.getElementById('split_ratio_input').value   = val;
+    document.getElementById('ratio_other').textContent = 100 - val;
+    document.getElementById('split_ratio_input').value = val;
+    syncSplitAmounts();
+}
+function updateRatioFromAmount(value) {
+    var total = totalAmount();
+    var amount = parseFloat(value || '0');
+    if (total <= 0) return;
+    updateRatio(Math.round((amount / total) * 100));
 }
 function applyIncomeRatio(ratio) {
     updateRatio(ratio);
@@ -410,7 +371,10 @@ function toggleSplitRatio() {
     document.getElementById('split_ratio_wrapper').style.display = shared ? '' : 'none';
     var warn = document.getElementById('income_warning');
     if (warn) warn.style.display = shared ? '' : 'none';
+    syncSplitAmounts();
 }
+document.getElementById('expense_amount').addEventListener('input', syncSplitAmounts);
+updateRatio(document.getElementById('split_ratio_input').value);
 toggleSplitRatio();
 </script>
 

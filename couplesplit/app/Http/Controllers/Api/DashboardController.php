@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Balance;
 use App\Models\Expense;
+use App\Models\User;
 use App\Services\PaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -23,15 +24,11 @@ class DashboardController extends Controller
         }
 
         $partner = $couple->users()->where('users.id', '!=', $user->id)->first();
+        if (!$partner) {
+            return response()->json(['message' => 'Parceiro ainda não aceitou o convite.'], 422);
+        }
 
-        $netBalance = Balance::where('user_id', $user->id)
-            ->where('related_user_id', $partner->id)
-            ->get()
-            ->sum(function ($b) {
-                $remaining = $b->amount - $b->used_amount;
-                return $b->type === 'credit' ? $remaining : -$remaining;
-            });
-
+        $netBalance = $this->netBalance($user, $partner);
         $debitAvailable = $this->service->totalOpenDebit($user, $partner);
 
         $recentExpenses = Expense::where('couple_id', $couple->id)
@@ -53,14 +50,24 @@ class DashboardController extends Controller
         $couple  = $user->currentCoupleOrFail();
         $partner = $couple->users()->where('users.id', '!=', $user->id)->firstOrFail();
 
-        $total = $this->service->totalOpenDebit($user, $partner);
+        $netBalance = $this->netBalance($user, $partner);
 
-        if ($total <= 0) {
+        if ($netBalance >= 0) {
             return response()->json(['message' => 'Nenhuma dívida em aberto.'], 422);
         }
 
-        $payment = $this->service->process($user, $couple, $partner, $total);
+        $payment = $this->service->process($user, $couple, $partner, abs($netBalance));
 
         return response()->json(['message' => 'Dívidas liquidadas.', 'payment' => $payment]);
+    }
+
+    private function netBalance(User $user, User $partner): float
+    {
+        return $this->service->openBalances($user, $partner)
+            ->get()
+            ->sum(function ($b) {
+                $remaining = $b->amount - $b->used_amount;
+                return $b->type === 'credit' ? $remaining : -$remaining;
+            });
     }
 }

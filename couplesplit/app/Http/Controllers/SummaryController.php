@@ -22,26 +22,35 @@ class SummaryController extends Controller
                 ->with('error', 'Seu parceiro(a) ainda não aceitou o convite.');
         }
 
-        $month   = $request->month ? Carbon::createFromFormat('Y-m', $request->month) : Carbon::now();
+        try {
+            $month = $request->month ? Carbon::createFromFormat('Y-m', $request->month) : Carbon::now();
+        } catch (\Exception $e) {
+            $month = Carbon::now();
+        }
         $month->startOfMonth();
 
         $expenses = Expense::where('couple_id', $couple->id)
-            ->whereYear('expense_date', $month->year)
-            ->whereMonth('expense_date', $month->month)
+            ->with(['payer', 'installments'])
             ->get();
+
+        $expenses = $expenses->filter(fn(Expense $expense) => $this->monthlyAmount($expense, $month) > 0);
 
         $shared   = $expenses->where('is_shared', true);
         $personal = $expenses->where('is_shared', false);
+        $sharedTotal = round($shared->sum(fn(Expense $expense) => $this->monthlyAmount($expense, $month)), 2);
+        $personalTotal = round($personal
+            ->where('paid_by', $user->id)
+            ->sum(fn(Expense $expense) => $this->monthlyAmount($expense, $month)), 2);
 
         $byCategory = $shared->groupBy('category')
-            ->map(fn($g) => round($g->sum('amount'), 2))
+            ->map(fn($g) => round($g->sum(fn(Expense $expense) => $this->monthlyAmount($expense, $month)), 2))
             ->mapWithKeys(fn($total, $key) => [$key ?: 'Sem categoria' => $total])
             ->sortByDesc(fn($v) => $v);
 
         $byPayer = $shared->groupBy('paid_by')
             ->map(fn($g) => [
                 'name'  => $g->first()->payer->name,
-                'total' => round($g->sum('amount'), 2),
+                'total' => round($g->sum(fn(Expense $expense) => $this->monthlyAmount($expense, $month)), 2),
                 'count' => $g->count(),
             ]);
 
@@ -59,6 +68,8 @@ class SummaryController extends Controller
             'month',
             'shared',
             'personal',
+            'sharedTotal',
+            'personalTotal',
             'byCategory',
             'byPayer',
             'payments',
@@ -67,5 +78,23 @@ class SummaryController extends Controller
             'nextMonth',
             'isCurrentMonth'
         ));
+    }
+
+    private function monthlyAmount(Expense $expense, Carbon $month): float
+    {
+        if ($expense->installments->isNotEmpty()) {
+            return (float) $expense->installments
+                ->filter(fn($installment) =>
+                    $installment->due_date &&
+                    $installment->due_date->isSameMonth($month)
+                )
+                ->sum('amount');
+        }
+
+        $date = $expense->billing_date ?: $expense->expense_date;
+
+        return $date && $date->isSameMonth($month)
+            ? (float) $expense->amount
+            : 0.0;
     }
 }

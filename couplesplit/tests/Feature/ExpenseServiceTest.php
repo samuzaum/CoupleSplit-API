@@ -117,3 +117,31 @@ it('creates installments correctly', function () {
     expect($installments->first()->installment_number)->toBe(1);
     expect($installments->last()->installment_number)->toBe(4);
 });
+it('creates shared installment balances per installment amount', function () {
+    [$couple, $userA, $userB] = makeCouple();
+
+    $expense = Expense::create([
+        'couple_id'    => $couple->id,
+        'paid_by'      => $userA->id,
+        'description'  => 'Compra parcelada',
+        'amount'       => 1599.00,
+        'expense_date' => Carbon::today(),
+        'billing_date' => Carbon::today(),
+        'is_shared'    => true,
+        'split_ratio'  => 0.5,
+    ]);
+
+    app(ExpenseService::class)->createInstallments($expense, 2);
+    $expense->load('installments');
+    app(ExpenseService::class)->createBalances($expense);
+
+    $debits = Balance::where('user_id', $userB->id)
+        ->where('related_user_id', $userA->id)
+        ->where('type', 'debit')
+        ->orderBy('id')
+        ->get();
+
+    expect($debits)->toHaveCount(2);
+    expect((float) $debits->first()->amount)->toBe(399.75);
+    expect((float) $debits->sum('amount'))->toBe(799.5);
+});
