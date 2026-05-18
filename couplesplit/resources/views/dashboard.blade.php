@@ -150,6 +150,42 @@ Nova despesa
 
 
 {{-- ======================
+MEUS CARTOES
+====================== --}}
+@if ($myCardCosts->isNotEmpty())
+<div class="bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-3xl p-6 space-y-4">
+    <div class="flex items-center justify-between">
+        <h3 class="font-semibold text-black dark:text-white">Meus cartoes — proximo fechamento</h3>
+        <a href="{{ route('installments.index') }}" class="text-xs text-gray-400 hover:text-black dark:hover:text-white">ver parcelas →</a>
+    </div>
+
+    @foreach ($myCardCosts as $cc)
+    <div class="flex items-center justify-between gap-4 py-3 border-t border-gray-100 dark:border-gray-800 first:border-t-0 first:pt-0">
+        <div class="min-w-0">
+            <p class="font-medium text-black dark:text-white">{{ $cc->card->name }}</p>
+            <p class="text-xs text-gray-400 mt-0.5">fecha {{ $cc->next_closing->format('d/m/Y') }}</p>
+            @if ($cc->partner_share > 0)
+            <p class="text-xs text-gray-400 mt-0.5">fatura total R$ {{ number_format($cc->total_bill, 2, ',', '.') }} &middot; parceiro deve R$ {{ number_format($cc->partner_share, 2, ',', '.') }}</p>
+            @endif
+        </div>
+        <div class="text-right shrink-0">
+            <p class="text-lg font-bold text-black dark:text-white">R$ {{ number_format($cc->my_cost, 2, ',', '.') }}</p>
+            <p class="text-xs text-gray-400">seu custo real</p>
+        </div>
+    </div>
+    @endforeach
+
+    @php $totalMyCost = $myCardCosts->sum('my_cost'); @endphp
+    @if ($myCardCosts->count() > 1)
+    <div class="flex justify-between items-center pt-3 border-t border-gray-200 dark:border-gray-700">
+        <p class="text-sm text-gray-500">Total dos cartoes</p>
+        <p class="font-bold text-black dark:text-white">R$ {{ number_format($totalMyCost, 2, ',', '.') }}</p>
+    </div>
+    @endif
+</div>
+@endif
+
+{{-- ======================
 CASAL
 ====================== --}}
 @if($couple)

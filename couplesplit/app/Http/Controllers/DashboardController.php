@@ -105,6 +105,8 @@ class DashboardController extends Controller
         $myRatio      = $totalIncome > 0 ? round($user->monthly_income / $totalIncome * 100) : null;
         $partnerRatio = $myRatio !== null ? 100 - $myRatio : null;
 
+        $myCardCosts = $this->myCardCostsThisCycle($user, $couple);
+
         return view('dashboard', compact(
             'partner',
             'netBalance',
@@ -124,7 +126,8 @@ class DashboardController extends Controller
             'partnerRatio',
             'budgets',
             'openInstallmentsCount',
-            'exceededBudgets'
+            'exceededBudgets',
+            'myCardCosts'
         ));
     }
 
@@ -146,6 +149,49 @@ class DashboardController extends Controller
         $this->service->process($user, $couple, $partner, abs($netBalance));
 
         return redirect()->route('dashboard')->with('success', 'Dívida liquidada!');
+    }
+
+    private function myCardCostsThisCycle($user, $couple): \Illuminate\Support\Collection
+    {
+        $today = Carbon::now();
+
+        return $user->cards()
+            ->where('type', 'credit')
+            ->get()
+            ->map(function ($card) use ($user, $couple, $today) {
+                $closingDay = $card->closing_day ?? 1;
+
+                $nextClosing = $today->day < $closingDay
+                    ? $today->copy()->setDay($closingDay)
+                    : $today->copy()->addMonthNoOverflow()->setDay($closingDay);
+
+                $installments = ExpenseInstallment::whereHas('expense', fn($q) =>
+                    $q->where('couple_id', $couple->id)
+                      ->where('card_id', $card->id)
+                      ->where('paid_by', $user->id)
+                )->whereNull('paid_at')
+                 ->whereYear('due_date', $nextClosing->year)
+                 ->whereMonth('due_date', $nextClosing->month)
+                 ->with('expense')
+                 ->get();
+
+                $totalBill = round($installments->sum('amount'), 2);
+
+                $myCost = round($installments->sum(function ($inst) {
+                    return $inst->expense->is_shared
+                        ? $inst->amount * ($inst->expense->split_ratio ?? 0.5)
+                        : $inst->amount;
+                }), 2);
+
+                return (object) [
+                    'card'         => $card,
+                    'next_closing' => $nextClosing,
+                    'total_bill'   => $totalBill,
+                    'my_cost'      => $myCost,
+                    'partner_share' => round($totalBill - $myCost, 2),
+                ];
+            })
+            ->filter(fn($c) => $c->total_bill > 0);
     }
 
     private function sharedMonthlyTotal(int $coupleId, Carbon $month): float
