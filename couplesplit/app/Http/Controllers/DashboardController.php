@@ -45,11 +45,16 @@ class DashboardController extends Controller
             ->where('type', 'debit')
             ->sum(fn($b) => $b->amount - $b->used_amount);
 
-        $openDebits = $openBalances->where('type', 'debit');
+        // Hidrata os balances com descrição legível (origem da dívida/crédito)
+        $openBalances->each(function ($b) {
+            $b->label = $this->service->descriptionForBalance($b) ?? 'Saldo';
+        });
+
+        $openDebits  = $openBalances->where('type', 'debit');
         $openCredits = $openBalances->where('type', 'credit');
 
         $recentExpenses = Expense::where('couple_id', $couple->id)
-            ->latest()
+            ->orderBy('expense_date', 'desc')
             ->take(5)
             ->get();
 

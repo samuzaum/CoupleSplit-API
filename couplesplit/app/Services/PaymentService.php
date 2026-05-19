@@ -204,7 +204,7 @@ class PaymentService
         return null;
     }
 
-    private function descriptionForBalance(Balance $balance): ?string
+    public function descriptionForBalance(Balance $balance): ?string
     {
         if ($balance->origin_table === 'expenses') {
             return Expense::find($balance->origin_id)?->description;

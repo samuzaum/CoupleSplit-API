@@ -298,7 +298,7 @@ p-8
 <div class="text-right">
 <p class="text-xs text-gray-400 uppercase tracking-wide">Gasto conjunto este mês</p>
 <p class="text-lg font-bold text-black dark:text-white">
-R$ {{ number_format($coupleMonthTotal, 2, ',', '.') }}
+R$ {{ number_format($sharedMonthTotal, 2, ',', '.') }}
 </p>
 @if ($lastMonthTotal > 0)
 @php $deltaSign = $monthDelta >= 0 ? '+' : ''; @endphp
@@ -374,7 +374,7 @@ rounded-3xl p-8
 <li class="flex justify-between">
 <div>
 <p class="text-black dark:text-white">{{ $expense->description }}</p>
-<p class="text-xs text-gray-500">{{ $expense->created_at->format('d/m/Y') }}</p>
+<p class="text-xs text-gray-500">{{ ($expense->expense_date ?? $expense->created_at)->format('d/m/Y') }}</p>
 </div>
 <strong>R$ {{ number_format($expense->amount,2,',','.') }}</strong>
 </li>
@@ -399,7 +399,7 @@ DÉBITOS / CRÉDITOS
 @foreach ($openDebits as $debit)
 @php $remaining = $debit->amount - $debit->used_amount; @endphp
 <li class="flex justify-between">
-<span>{{ $debit->description }}</span>
+<span>{{ $debit->label ?? 'Saldo' }}</span>
 <strong>R$ {{ number_format($remaining,2,',','.') }}</strong>
 </li>
 @endforeach
@@ -412,7 +412,7 @@ DÉBITOS / CRÉDITOS
 @foreach ($openCredits as $credit)
 @php $remaining = $credit->amount - $credit->used_amount; @endphp
 <li class="flex justify-between">
-<span>{{ $credit->description }}</span>
+<span>{{ $credit->label ?? 'Saldo' }}</span>
 <strong class="text-green-600">R$ {{ number_format($remaining,2,',','.') }}</strong>
 </li>
 @endforeach

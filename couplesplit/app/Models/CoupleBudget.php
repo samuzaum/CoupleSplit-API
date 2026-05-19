@@ -33,7 +33,7 @@ class CoupleBudget extends Model
                         ->sum('amount');
                 }
 
-                $date = $expense->billing_date ?: $expense->expense_date;
+                $date = $expense->expense_date;
 
                 return $date && $date->isSameMonth(Carbon::now())
                     ? $expense->amount
