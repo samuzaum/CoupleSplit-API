@@ -23,8 +23,14 @@ class CalculatorController extends Controller
         $totalIncome  = $myIncome + (float) ($partner?->monthly_income ?? 0);
         $currentMonth = Carbon::now()->startOfMonth();
 
-        // dívida acumulada com o parceiro — já está comprometida
-        $netDebt = $partner ? max(0, $this->paymentService->totalOpenDebit($user, $partner)) : 0;
+        // dívida acumulada de meses ANTERIORES com o parceiro.
+        // Débitos do mês corrente já são contados em myCommittedForMonth (sua parte das despesas dele),
+        // então só somamos dívidas cujo balance foi criado antes do início deste mês.
+        $netDebt = $partner ? max(0, $this->paymentService->openBalances($user, $partner)
+            ->where('type', 'debit')
+            ->where('created_at', '<', $currentMonth)
+            ->get()
+            ->sum(fn($b) => $b->amount - $b->used_amount)) : 0;
 
         $committed = $this->myCommittedForMonth($user, $couple, $currentMonth) + $netDebt;
         $available = $myIncome > 0 ? round($myIncome - $committed, 2) : null;
