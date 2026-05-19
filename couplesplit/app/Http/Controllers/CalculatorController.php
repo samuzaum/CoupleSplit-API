@@ -121,6 +121,8 @@ class CalculatorController extends Controller
         });
 
         // despesas avulsas (sem parcelamento) — recorrentes ou do mês
+        // usa expense_date (quando foi gasto) como referência, não billing_date
+        // (billing_date empurra compras do mês pro ciclo seguinte do cartão)
         $singleExpenses = Expense::where('couple_id', $couple->id)
             ->whereDoesntHave('installments')
             ->whereNull('parent_id')
@@ -129,8 +131,8 @@ class CalculatorController extends Controller
                     $recurring->where('is_recurring', true);
                 })->orWhere(function ($monthly) use ($month) {
                     $monthly->where('is_recurring', false)
-                            ->whereYear('billing_date', $month->year)
-                            ->whereMonth('billing_date', $month->month);
+                            ->whereYear('expense_date', $month->year)
+                            ->whereMonth('expense_date', $month->month);
                 });
             })
             ->where(function ($q) use ($user) {

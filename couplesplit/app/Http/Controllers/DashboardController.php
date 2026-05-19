@@ -313,7 +313,9 @@ class DashboardController extends Controller
                 ->sum('amount');
         }
 
-        $date = $expense->billing_date ?: $expense->expense_date;
+        // usa expense_date (quando foi gasto) como referência de período,
+        // não billing_date (que depende do ciclo do cartão e empurra compras pro mês seguinte)
+        $date = $expense->expense_date;
 
         if (!$date || !$date->isSameMonth($month)) {
             return 0.0;

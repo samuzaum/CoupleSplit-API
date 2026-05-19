@@ -52,7 +52,7 @@ class CalendarController extends Controller
                     ];
                 }
             } else {
-                $date = $expense->billing_date ?? $expense->expense_date;
+                $date = $expense->expense_date ?? $expense->billing_date;
                 if (!$date) {
                     continue;
                 }

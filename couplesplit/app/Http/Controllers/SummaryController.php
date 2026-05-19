@@ -91,7 +91,8 @@ class SummaryController extends Controller
                 ->sum('amount');
         }
 
-        $date = $expense->billing_date ?: $expense->expense_date;
+        // usa expense_date como referência de período (quando foi gasto)
+        $date = $expense->expense_date;
 
         return $date && $date->isSameMonth($month)
             ? (float) $expense->amount
