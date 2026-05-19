@@ -190,16 +190,38 @@ class DashboardController extends Controller
                     2
                 );
 
-                $myCost = round(
-                    $installments->sum(fn($inst) => $inst->expense->is_shared
-                        ? $inst->amount * ($inst->expense->split_ratio ?? 0.5)
-                        : $inst->amount
-                    ) + $singleExpenses->sum(fn($exp) => $exp->is_shared
-                        ? $exp->amount * ($exp->split_ratio ?? 0.5)
-                        : $exp->amount
-                    ),
-                    2
-                );
+                // monta linhas detalhadas para o breakdown
+                $lines = collect();
+
+                foreach ($installments as $inst) {
+                    $full   = round((float) $inst->amount, 2);
+                    $mine   = $inst->expense->is_shared
+                        ? round($full * ($inst->expense->split_ratio ?? 0.5), 2)
+                        : $full;
+                    $lines->push((object) [
+                        'description'  => $inst->expense->description . ' (parcela ' . $inst->installment_number . ')',
+                        'full_amount'  => $full,
+                        'my_amount'    => $mine,
+                        'is_shared'    => (bool) $inst->expense->is_shared,
+                        'split_pct'    => round(($inst->expense->split_ratio ?? 0.5) * 100),
+                    ]);
+                }
+
+                foreach ($singleExpenses as $exp) {
+                    $full = round((float) $exp->amount, 2);
+                    $mine = $exp->is_shared
+                        ? round($full * ($exp->split_ratio ?? 0.5), 2)
+                        : $full;
+                    $lines->push((object) [
+                        'description'  => $exp->description,
+                        'full_amount'  => $full,
+                        'my_amount'    => $mine,
+                        'is_shared'    => (bool) $exp->is_shared,
+                        'split_pct'    => round(($exp->split_ratio ?? 0.5) * 100),
+                    ]);
+                }
+
+                $myCost = round($lines->sum('my_amount'), 2);
 
                 return (object) [
                     'card'          => $card,
@@ -207,6 +229,7 @@ class DashboardController extends Controller
                     'total_bill'    => $totalBill,
                     'my_cost'       => $myCost,
                     'partner_share' => round($totalBill - $myCost, 2),
+                    'lines'         => $lines,
                 ];
             })
             ->filter(fn($c) => $c->total_bill > 0);
