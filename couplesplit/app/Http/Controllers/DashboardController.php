@@ -266,16 +266,18 @@ class DashboardController extends Controller
                 }
 
                 foreach ($singleExpenses as $exp) {
-                    $full = round((float) $exp->amount, 2);
-                    $mine = $exp->is_shared
-                        ? round($full * ($exp->split_ratio ?? 0.5), 2)
+                    $full   = round((float) $exp->amount, 2);
+                    $iPaid  = $exp->paid_by === $user->id;
+                    $ratio  = $exp->split_ratio ?? 0.5;
+                    $mine   = $exp->is_shared
+                        ? round($full * ($iPaid ? $ratio : 1 - $ratio), 2)
                         : $full;
                     $lines->push((object) [
                         'description'  => $exp->description,
                         'full_amount'  => $full,
                         'my_amount'    => $mine,
                         'is_shared'    => (bool) $exp->is_shared,
-                        'split_pct'    => round(($exp->split_ratio ?? 0.5) * 100),
+                        'split_pct'    => round($ratio * 100),
                     ]);
                 }
 
