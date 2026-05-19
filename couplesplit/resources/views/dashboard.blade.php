@@ -94,10 +94,11 @@ Tudo certo entre vocês
 
 <div class="flex justify-center gap-8 mt-6 text-sm flex-wrap">
 
+@php $sharedMonthTotal = round($myMonthShare + $partnerMonthShare, 2); @endphp
 <div class="text-center">
 <p class="text-xs uppercase tracking-wide text-gray-400 mb-1">Gasto conjunto este mês</p>
-<p class="font-semibold text-black dark:text-white">R$ {{ number_format($coupleMonthTotal, 2, ',', '.') }}</p>
-@if ($coupleMonthTotal > 0)
+<p class="font-semibold text-black dark:text-white">R$ {{ number_format($sharedMonthTotal, 2, ',', '.') }}</p>
+@if ($sharedMonthTotal > 0)
 <p class="text-xs text-gray-400 mt-1">
     sua parte R$ {{ number_format($myMonthShare, 2, ',', '.') }}
     &middot; {{ $partner->name }} R$ {{ number_format($partnerMonthShare, 2, ',', '.') }}

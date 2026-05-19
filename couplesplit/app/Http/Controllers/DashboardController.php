@@ -107,9 +107,10 @@ class DashboardController extends Controller
 
         $myCardCosts = $this->myCardCostsThisCycle($user, $couple);
 
-        // share mensal e breakdown do saldo
-        [$myMonthShare, $partnerMonthShare] = $this->monthShareSplit($allExpenses, $user, $coupleMonthTotal);
+        // breakdown por expense_date (quando foi gasto, não quando cai na fatura)
         $balanceBreakdown = $this->buildBalanceBreakdown($allExpenses, $user, $partner);
+        $myMonthShare     = round($balanceBreakdown->sum('my_share'), 2);
+        $partnerMonthShare = round($balanceBreakdown->sum('partner_share'), 2);
 
         return view('dashboard', compact(
             'partner',
@@ -158,51 +159,42 @@ class DashboardController extends Controller
         return redirect()->route('dashboard')->with('success', 'Dívida liquidada!');
     }
 
-    private function monthShareSplit($allExpenses, $user, float $coupleMonthTotal): array
-    {
-        $now = Carbon::now();
-
-        $myShare = round($allExpenses->sum(function (Expense $expense) use ($user, $now) {
-            $amount = $this->expenseMonthlyAmount($expense, $now);
-            if ($amount <= 0) return 0;
-            return $expense->paid_by === $user->id
-                ? $amount * ($expense->split_ratio ?? 0.5)
-                : $amount * (1 - ($expense->split_ratio ?? 0.5));
-        }), 2);
-
-        return [$myShare, round($coupleMonthTotal - $myShare, 2)];
-    }
-
     private function buildBalanceBreakdown($allExpenses, $user, $partner): \Illuminate\Support\Collection
     {
         $now = Carbon::now();
 
         return $allExpenses
-            ->filter(fn(Expense $e) => $this->expenseMonthlyAmount($e, $now) > 0)
+            ->filter(function (Expense $e) use ($now) {
+                if ($e->installments->isNotEmpty()) {
+                    // parceladas: mostra pelo mês de vencimento da parcela
+                    return $this->expenseMonthlyAmount($e, $now) > 0;
+                }
+                // avulsas: mostra pelo mês em que foi gasta (expense_date)
+                return $e->expense_date && $e->expense_date->isSameMonth($now);
+            })
             ->map(function (Expense $expense) use ($user, $partner, $now) {
-                $monthAmount  = round($this->expenseMonthlyAmount($expense, $now), 2);
+                // valor do mês: parcela devida ou valor cheio se avulsa
+                $monthAmount = $expense->installments->isNotEmpty()
+                    ? round($this->expenseMonthlyAmount($expense, $now), 2)
+                    : round((float) $expense->amount, 2);
+
                 $splitRatio   = $expense->split_ratio ?? 0.5;
                 $iPaid        = $expense->paid_by === $user->id;
                 $myShare      = round($monthAmount * ($iPaid ? $splitRatio : 1 - $splitRatio), 2);
                 $partnerShare = round($monthAmount - $myShare, 2);
+                $iOwe         = !$iPaid ? $myShare   : 0;
+                $partnerOwes  = $iPaid  ? $partnerShare : 0;
 
-                // se eu paguei: parceiro me deve partnerShare
-                // se parceiro pagou: eu devo ao parceiro myShare
-                $iOwe        = !$iPaid ? $myShare  : 0;
-                $partnerOwes = $iPaid  ? $partnerShare : 0;
-
-                // tem parcelas? resolve o label
-                $hasInstallments = $expense->installments->isNotEmpty();
-                $installmentLabel = '';
-                if ($hasInstallments) {
+                $label = $expense->description;
+                if ($expense->installments->isNotEmpty()) {
                     $inst = $expense->installments->first(fn($i) => $i->due_date->isSameMonth($now));
                     if ($inst) {
-                        $installmentLabel = ' (parcela ' . $inst->installment_number . '/' . $expense->installments->count() . ')';
+                        $label .= ' (parcela ' . $inst->installment_number . '/' . $expense->installments->count() . ')';
                     }
                 }
 
                 return (object) [
-                    'description'   => $expense->description . $installmentLabel,
+                    'description'   => $label,
                     'full_amount'   => $monthAmount,
                     'my_share'      => $myShare,
                     'partner_share' => $partnerShare,
@@ -212,7 +204,9 @@ class DashboardController extends Controller
                     'partner_owes'  => $partnerOwes,
                     'payer_name'    => $iPaid ? 'Você' : $partner->name,
                 ];
-            });
+            })
+            ->sortByDesc('full_amount')
+            ->values();
     }
 
     private function myCardCostsThisCycle($user, $couple): \Illuminate\Support\Collection
