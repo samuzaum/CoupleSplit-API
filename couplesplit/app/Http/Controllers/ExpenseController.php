@@ -61,11 +61,17 @@ class ExpenseController extends Controller
         $user   = Auth::user();
         $couple = $user->currentCoupleOrFail();
 
-        $partner     = $couple->users()->where('users.id', '!=', $user->id)->first();
-        $paidBy      = $request->boolean('paid_by_partner') && $partner ? $partner->id : $user->id;
-        $expenseDate = Carbon::parse($request->expense_date);
-        $billingDate = $this->service->calculateBillingDate($request->card_id, $expenseDate);
-        $splitRatio  = $request->is_shared ? round(($request->split_ratio ?? 50) / 100, 4) : 1.0;
+        $partner       = $couple->users()->where('users.id', '!=', $user->id)->first();
+        $paidByPartner = $request->boolean('paid_by_partner') && $partner;
+        $paidBy        = $paidByPartner ? $partner->id : $user->id;
+        $expenseDate   = Carbon::parse($request->expense_date);
+        $billingDate   = $this->service->calculateBillingDate($request->card_id, $expenseDate);
+        // O slider "Sua parte" representa sempre a fração do USUÁRIO logado.
+        // split_ratio no banco = fração do PAGADOR.
+        // Quando o parceiro pagou, inverte para converter "minha parte" → "parte do pagador".
+        $userPct    = (int)($request->split_ratio ?? 50);
+        $payerPct   = $paidByPartner ? (100 - $userPct) : $userPct;
+        $splitRatio = $request->is_shared ? round($payerPct / 100, 4) : 1.0;
 
         $expense = Expense::create([
             'couple_id'    => $couple->id,
@@ -130,7 +136,13 @@ class ExpenseController extends Controller
         $customCats = $couple->categories()->pluck('name');
         $hasPayments  = $this->hasExpensePayments($expense);
 
-        return view('expenses.edit', compact('expense', 'cards', 'hasPayments', 'customCats'));
+        // split_ratio no banco = fração do PAGADOR. Para exibir "Sua parte" corretamente,
+        // se o pagador não é o usuário logado, invertemos o valor para a perspectiva do usuário.
+        $splitRatioDisplay = $expense->paid_by === $user->id
+            ? (int) round($expense->split_ratio * 100)
+            : (int) round((1 - $expense->split_ratio) * 100);
+
+        return view('expenses.edit', compact('expense', 'cards', 'hasPayments', 'customCats', 'splitRatioDisplay'));
     }
 
     public function update(Request $request, Expense $expense)
@@ -161,9 +173,13 @@ class ExpenseController extends Controller
                 'category'     => 'nullable|string',
             ]);
 
-            $expenseDate = Carbon::parse($request->expense_date);
-            $billingDate = $this->service->calculateBillingDate($request->card_id, $expenseDate);
-            $splitRatio  = $request->is_shared ? round(($request->split_ratio ?? 50) / 100, 4) : 1.0;
+            $expenseDate   = Carbon::parse($request->expense_date);
+            $billingDate   = $this->service->calculateBillingDate($request->card_id, $expenseDate);
+            // O slider "Sua parte" = fração do usuário logado. split_ratio no banco = fração do pagador.
+            $userPct    = (int)($request->split_ratio ?? 50);
+            $paidByPartner = $expense->paid_by !== $user->id;
+            $payerPct   = $paidByPartner ? (100 - $userPct) : $userPct;
+            $splitRatio = $request->is_shared ? round($payerPct / 100, 4) : 1.0;
 
             DB::transaction(function () use ($request, $expense, $expenseDate, $billingDate, $splitRatio) {
                 $installmentCount = $expense->installments()->count();

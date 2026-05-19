@@ -66,9 +66,18 @@ class DashboardController extends Controller
             ->with('installments')
             ->get();
 
+        // Gráficos mostram a PARTE DO USUÁRIO em cada categoria/mês,
+        // não o gasto total do casal (que varia conforme quem olha).
         $byCategory = $allExpenses
             ->groupBy('category')
-            ->map(fn($g) => round($g->sum(fn($expense) => $this->expenseMonthlyAmount($expense, Carbon::now())), 2))
+            ->map(function ($g) use ($user) {
+                return round($g->sum(function ($expense) use ($user) {
+                    $monthAmount = $this->expenseMonthlyAmount($expense, Carbon::now());
+                    if ($monthAmount == 0.0) return 0.0;
+                    $ratio = $expense->split_ratio ?? 0.5;
+                    return $monthAmount * ($expense->paid_by === $user->id ? $ratio : 1 - $ratio);
+                }), 2);
+            })
             ->filter(fn($total) => $total > 0)
             ->mapWithKeys(fn($total, $key) => [$key ?: 'Sem categoria' => $total]);
 
@@ -77,9 +86,14 @@ class DashboardController extends Controller
             $months->push(Carbon::now()->subMonths($i)->format('Y-m'));
         }
 
-        $byMonth = $months->mapWithKeys(function ($ym) use ($allExpenses) {
+        $byMonth = $months->mapWithKeys(function ($ym) use ($allExpenses, $user) {
             $monthDate = Carbon::createFromFormat('Y-m', $ym)->startOfMonth();
-            $total = $allExpenses->sum(fn($expense) => $this->expenseMonthlyAmount($expense, $monthDate));
+            $total = $allExpenses->sum(function ($expense) use ($monthDate, $user) {
+                $monthAmount = $this->expenseMonthlyAmount($expense, $monthDate);
+                if ($monthAmount == 0.0) return 0.0;
+                $ratio = $expense->split_ratio ?? 0.5;
+                return $monthAmount * ($expense->paid_by === $user->id ? $ratio : 1 - $ratio);
+            });
             $label = $monthDate->translatedFormat('M/y');
             return [$label => round($total, 2)];
         });
@@ -99,9 +113,10 @@ class DashboardController extends Controller
             return $budget;
         });
 
-        $openInstallmentsCount = ExpenseInstallment::whereHas('expense', fn($q) => $q->where('couple_id', $couple->id))
-            ->whereNull('paid_at')
-            ->count();
+        // Conta parcelas abertas NA PERSPECTIVA DO USUÁRIO (não do casal inteiro)
+        $myDebitInstallmentsCount  = $openBalances->where('type', 'debit')->where('origin_table', 'expense_installments')->count();
+        $myCreditInstallmentsCount = $openBalances->where('type', 'credit')->where('origin_table', 'expense_installments')->count();
+        $openInstallmentsCount     = $myDebitInstallmentsCount + $myCreditInstallmentsCount;
 
         $exceededBudgets = collect($this->notifications->getActive($user))
             ->filter(fn($n) => $n['type'] === 'budget_exceeded');
@@ -136,6 +151,8 @@ class DashboardController extends Controller
             'partnerRatio',
             'budgets',
             'openInstallmentsCount',
+            'myDebitInstallmentsCount',
+            'myCreditInstallmentsCount',
             'exceededBudgets',
             'myCardCosts',
             'myMonthShare',

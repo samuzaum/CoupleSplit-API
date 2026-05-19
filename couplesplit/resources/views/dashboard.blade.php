@@ -121,9 +121,20 @@ Tudo certo entre vocês
 
 @if ($openInstallmentsCount > 0)
 <div class="text-center">
-<p class="text-xs uppercase tracking-wide text-gray-400 mb-1">Parcelas abertas</p>
+<p class="text-xs uppercase tracking-wide text-gray-400 mb-1">Suas parcelas abertas</p>
 <p class="font-semibold text-black dark:text-white">
 {{ $openInstallmentsCount }} parcela{{ $openInstallmentsCount !== 1 ? 's' : '' }}
+</p>
+<p class="text-xs text-gray-400 mt-0.5">
+    @if ($myDebitInstallmentsCount > 0)
+        <span class="text-red-400">{{ $myDebitInstallmentsCount }} você deve</span>
+    @endif
+    @if ($myDebitInstallmentsCount > 0 && $myCreditInstallmentsCount > 0)
+        &middot;
+    @endif
+    @if ($myCreditInstallmentsCount > 0)
+        <span class="text-green-500">{{ $myCreditInstallmentsCount }} a receber</span>
+    @endif
 </p>
 </div>
 @endif
@@ -463,14 +474,14 @@ bg-white dark:bg-black
 border border-gray-200 dark:border-gray-800
 rounded-3xl p-8
 ">
-<h3 class="font-semibold mb-6 text-black dark:text-white">Gastos por mês</h3>
+<h3 class="font-semibold mb-6 text-black dark:text-white">Sua parte por mês</h3>
 <canvas id="chartByMonth" height="100"></canvas>
 </div>
 @endif
 
 @if ($byCategory->isNotEmpty())
 <div class="bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-3xl p-6">
-<h3 class="font-semibold mb-4 text-black dark:text-white">Gastos por categoria</h3>
+<h3 class="font-semibold mb-4 text-black dark:text-white">Sua parte por categoria</h3>
 <div class="mx-auto" style="max-width:260px">
     <canvas id="chartByCategory"></canvas>
 </div>

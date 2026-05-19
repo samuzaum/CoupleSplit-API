@@ -137,7 +137,7 @@ data-type="{{ $card->type }}"
 Despesa compartilhada
 </label>
 
-@php $currentRatio = old('split_ratio', round($expense->split_ratio * 100)); @endphp
+@php $currentRatio = old('split_ratio', $splitRatioDisplay); @endphp
 <div id="split_ratio_wrapper">
 <label class="block text-sm text-gray-700 dark:text-gray-300 mb-1">
     Sua parte: <span id="ratio_display">{{ $currentRatio }}</span>% &nbsp;|&nbsp; Parceiro(a): <span id="ratio_other">{{ 100 - $currentRatio }}</span>%
