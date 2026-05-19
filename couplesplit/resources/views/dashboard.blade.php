@@ -131,31 +131,45 @@ Tudo certo entre vocês
 
 {{-- breakdown expansível do saldo --}}
 @if ($balanceBreakdown->isNotEmpty())
-@php
-    $debits  = $balanceBreakdown->where('is_credit', false);
-    $credits = $balanceBreakdown->where('is_credit', true);
-@endphp
 <div id="balance-breakdown" class="hidden mt-6 text-left border-t border-gray-100 dark:border-gray-800 pt-4 space-y-3">
 
-    @if ($debits->isNotEmpty())
-    <p class="text-xs font-semibold uppercase tracking-wide text-red-400">Você deve {{ $partner->name }}</p>
-    @foreach ($debits as $b)
-    <div class="flex justify-between text-sm gap-4">
-        <span class="text-gray-600 dark:text-gray-400 truncate">{{ $b->description }}</span>
-        <span class="shrink-0 text-red-500 font-medium">- R$ {{ number_format($b->amount, 2, ',', '.') }}</span>
-    </div>
-    @endforeach
-    @endif
+    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Despesas compartilhadas este mês</p>
 
-    @if ($credits->isNotEmpty())
-    <p class="text-xs font-semibold uppercase tracking-wide text-green-500 {{ $debits->isNotEmpty() ? 'pt-2' : '' }}">{{ $partner->name }} te deve</p>
-    @foreach ($credits as $b)
-    <div class="flex justify-between text-sm gap-4">
-        <span class="text-gray-600 dark:text-gray-400 truncate">{{ $b->description }}</span>
-        <span class="shrink-0 text-green-600 font-medium">+ R$ {{ number_format($b->amount, 2, ',', '.') }}</span>
+    @foreach ($balanceBreakdown as $b)
+    <div class="space-y-0.5">
+        <div class="flex justify-between items-start gap-3 text-sm">
+            <span class="text-black dark:text-white truncate">{{ $b->description }}</span>
+            <span class="shrink-0 text-gray-500">R$ {{ number_format($b->full_amount, 2, ',', '.') }}</span>
+        </div>
+        <div class="flex justify-between text-xs text-gray-400 gap-3">
+            <span>
+                Pagou: {{ $b->payer_name }} &middot; split {{ $b->split_pct }}%/{{ 100 - $b->split_pct }}%
+            </span>
+            <span class="{{ $b->i_owe > 0 ? 'text-red-400' : 'text-green-500' }}">
+                @if ($b->i_owe > 0)
+                    você deve R$ {{ number_format($b->i_owe, 2, ',', '.') }}
+                @else
+                    {{ $partner->name }} deve R$ {{ number_format($b->partner_owes, 2, ',', '.') }}
+                @endif
+            </span>
+        </div>
     </div>
     @endforeach
-    @endif
+
+    @php
+        $totalIOwe       = round($balanceBreakdown->sum('i_owe'), 2);
+        $totalPartnerOwes = round($balanceBreakdown->sum('partner_owes'), 2);
+    @endphp
+    <div class="pt-2 border-t border-gray-100 dark:border-gray-800 flex justify-between text-sm font-medium">
+        <span class="text-gray-500">Resultado bruto</span>
+        <span class="{{ $totalIOwe > $totalPartnerOwes ? 'text-red-500' : 'text-green-600' }}">
+            @if ($totalIOwe > $totalPartnerOwes)
+                você deve R$ {{ number_format($totalIOwe - $totalPartnerOwes, 2, ',', '.') }}
+            @else
+                {{ $partner->name }} deve R$ {{ number_format($totalPartnerOwes - $totalIOwe, 2, ',', '.') }}
+            @endif
+        </span>
+    </div>
 
 </div>
 @endif

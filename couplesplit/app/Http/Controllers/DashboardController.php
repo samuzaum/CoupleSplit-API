@@ -109,7 +109,7 @@ class DashboardController extends Controller
 
         // share mensal e breakdown do saldo
         [$myMonthShare, $partnerMonthShare] = $this->monthShareSplit($allExpenses, $user, $coupleMonthTotal);
-        $balanceBreakdown = $this->buildBalanceBreakdown($openBalances, $user, $partner);
+        $balanceBreakdown = $this->buildBalanceBreakdown($allExpenses, $user, $partner);
 
         return view('dashboard', compact(
             'partner',
@@ -173,34 +173,46 @@ class DashboardController extends Controller
         return [$myShare, round($coupleMonthTotal - $myShare, 2)];
     }
 
-    private function buildBalanceBreakdown($openBalances, $user, $partner): \Illuminate\Support\Collection
+    private function buildBalanceBreakdown($allExpenses, $user, $partner): \Illuminate\Support\Collection
     {
-        // agrupa créditos e débitos por expense para montar o breakdown
-        return $openBalances->map(function ($balance) use ($user, $partner) {
-            $remaining = round($balance->amount - $balance->used_amount, 2);
-            $isCredit  = $balance->type === 'credit';
+        $now = Carbon::now();
 
-            // tenta resolver descrição via origin
-            $description = null;
-            if ($balance->origin_table === 'expenses') {
-                $description = Expense::find($balance->origin_id)?->description;
-            } elseif ($balance->origin_table === 'expense_installments') {
-                $inst = \App\Models\ExpenseInstallment::with('expense')->find($balance->origin_id);
-                if ($inst) {
-                    $description = $inst->expense->description . ' (parcela ' . $inst->installment_number . ')';
+        return $allExpenses
+            ->filter(fn(Expense $e) => $this->expenseMonthlyAmount($e, $now) > 0)
+            ->map(function (Expense $expense) use ($user, $partner, $now) {
+                $monthAmount  = round($this->expenseMonthlyAmount($expense, $now), 2);
+                $splitRatio   = $expense->split_ratio ?? 0.5;
+                $iPaid        = $expense->paid_by === $user->id;
+                $myShare      = round($monthAmount * ($iPaid ? $splitRatio : 1 - $splitRatio), 2);
+                $partnerShare = round($monthAmount - $myShare, 2);
+
+                // se eu paguei: parceiro me deve partnerShare
+                // se parceiro pagou: eu devo ao parceiro myShare
+                $iOwe        = !$iPaid ? $myShare  : 0;
+                $partnerOwes = $iPaid  ? $partnerShare : 0;
+
+                // tem parcelas? resolve o label
+                $hasInstallments = $expense->installments->isNotEmpty();
+                $installmentLabel = '';
+                if ($hasInstallments) {
+                    $inst = $expense->installments->first(fn($i) => $i->due_date->isSameMonth($now));
+                    if ($inst) {
+                        $installmentLabel = ' (parcela ' . $inst->installment_number . '/' . $expense->installments->count() . ')';
+                    }
                 }
-            }
 
-            return (object) [
-                'description' => $description ?? 'Despesa',
-                'amount'      => $remaining,
-                'is_credit'   => $isCredit,
-                // crédito = parceiro te deve; débito = você deve ao parceiro
-                'label'       => $isCredit
-                    ? $partner->name . ' te deve'
-                    : 'Você deve ' . $partner->name,
-            ];
-        })->filter(fn($b) => $b->amount > 0.001);
+                return (object) [
+                    'description'   => $expense->description . $installmentLabel,
+                    'full_amount'   => $monthAmount,
+                    'my_share'      => $myShare,
+                    'partner_share' => $partnerShare,
+                    'split_pct'     => round($splitRatio * 100),
+                    'i_paid'        => $iPaid,
+                    'i_owe'         => $iOwe,
+                    'partner_owes'  => $partnerOwes,
+                    'payer_name'    => $iPaid ? 'Você' : $partner->name,
+                ];
+            });
     }
 
     private function myCardCostsThisCycle($user, $couple): \Illuminate\Support\Collection
