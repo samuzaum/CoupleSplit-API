@@ -9,7 +9,7 @@
 </div>
 
 @php
-$usedPct = $totalIncome > 0 ? round($committed / $totalIncome * 100) : null;
+$usedPct = $myIncome > 0 ? round($committed / $myIncome * 100) : null;
 $barClass = fn($c) => match($c) {
     'green' => 'bg-green-500',
     'yellow' => 'bg-yellow-400',
@@ -23,9 +23,10 @@ $textClass = fn($c) => match($c) {
     default => 'text-gray-500',
 };
 $currentColor = $usedPct === null ? 'gray' : ($usedPct < 50 ? 'green' : ($usedPct < 75 ? 'yellow' : 'red'));
+$expenseCommitted = round($committed - $netDebt, 2);
 @endphp
 
-@if ($totalIncome)
+@if ($myIncome)
 <div class="bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-2xl p-6 space-y-4">
     <div class="flex justify-between items-start gap-4">
         <div>
@@ -33,18 +34,30 @@ $currentColor = $usedPct === null ? 'gray' : ($usedPct < 50 ? 'green' : ($usedPc
             <p class="text-xs text-gray-500 mt-1">Inclui faturas/parcelas abertas, despesas do mes e recorrencias.</p>
         </div>
         <div class="text-right">
-            <p class="text-lg font-bold {{ $available >= 0 ? 'text-green-600' : 'text-red-600' }}">
-                R$ {{ number_format(abs($available), 2, ',', '.') }}
+            <p class="text-lg font-bold {{ ($available ?? 0) >= 0 ? 'text-green-600' : 'text-red-600' }}">
+                R$ {{ number_format(abs($available ?? 0), 2, ',', '.') }}
             </p>
-            <p class="text-xs text-gray-500">{{ $available < 0 ? 'acima da renda' : 'ainda livre' }}</p>
+            <p class="text-xs text-gray-500">{{ ($available ?? 0) < 0 ? 'acima da renda' : 'ainda livre' }}</p>
         </div>
     </div>
     <div class="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-3 overflow-hidden">
-        <div class="{{ $barClass($currentColor) }} h-3 rounded-full" style="width: {{ min(100, $usedPct) }}%"></div>
+        <div class="{{ $barClass($currentColor) }} h-3 rounded-full" style="width: {{ min(100, $usedPct ?? 0) }}%"></div>
     </div>
-    <div class="flex justify-between text-xs text-gray-400">
-        <span>Comprometido: R$ {{ number_format($committed, 2, ',', '.') }} ({{ $usedPct }}%)</span>
-        <span>Renda: R$ {{ number_format($totalIncome, 2, ',', '.') }}</span>
+    <div class="space-y-1 text-xs text-gray-400">
+        <div class="flex justify-between">
+            <span>Despesas do mes: R$ {{ number_format($expenseCommitted, 2, ',', '.') }}</span>
+            <span>Sua renda: R$ {{ number_format($myIncome, 2, ',', '.') }}</span>
+        </div>
+        @if ($netDebt > 0)
+        <div class="flex justify-between text-red-500">
+            <span>Divida com parceiro(a): R$ {{ number_format($netDebt, 2, ',', '.') }}</span>
+            <span>Total comprometido: {{ $usedPct }}%</span>
+        </div>
+        @else
+        <div class="flex justify-between">
+            <span>Total comprometido: R$ {{ number_format($committed, 2, ',', '.') }} ({{ $usedPct }}%)</span>
+        </div>
+        @endif
     </div>
 </div>
 @else
@@ -131,7 +144,7 @@ $verdict = match($worst) {
                 @if ($row['risk_pct'] !== null)<span class="block text-xs font-normal">{{ $row['risk_pct'] }}%</span>@endif
             </span>
         </div>
-        @if ($totalIncome && $row['risk_pct'] !== null)
+        @if ($myIncome && $row['risk_pct'] !== null)
         <div class="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2 overflow-hidden">
             <div class="{{ $barClass($row['color']) }} h-2 rounded-full transition-all" style="width: {{ min(100, $row['risk_pct']) }}%"></div>
         </div>
