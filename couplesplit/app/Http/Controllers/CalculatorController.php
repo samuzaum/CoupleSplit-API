@@ -23,12 +23,27 @@ class CalculatorController extends Controller
         $totalIncome  = $myIncome + (float) ($partner?->monthly_income ?? 0);
         $currentMonth = Carbon::now()->startOfMonth();
 
-        // dívida acumulada de meses ANTERIORES com o parceiro.
-        // Débitos do mês corrente já são contados em myCommittedForMonth (sua parte das despesas dele),
-        // então só somamos dívidas cujo balance foi criado antes do início deste mês.
+        // Dívida acumulada de meses anteriores com o parceiro.
+        // Regras para evitar double counting com myCommittedForMonth:
+        //   1) Parcelas com due_date neste mês já estão em myCommittedForMonth → excluir
+        //   2) Despesas avulsas registradas neste mês (created_at >= início do mês) já estão → excluir
+        $currentMonthInstallmentIds = ExpenseInstallment::whereNull('paid_at')
+            ->whereYear('due_date', $currentMonth->year)
+            ->whereMonth('due_date', $currentMonth->month)
+            ->pluck('id');
+
         $netDebt = $partner ? max(0, $this->paymentService->openBalances($user, $partner)
             ->where('type', 'debit')
-            ->where('created_at', '<', $currentMonth)
+            ->where(function ($q) use ($currentMonthInstallmentIds) {
+                // exclui parcelas cujo vencimento é este mês
+                $q->where('origin_table', '!=', 'expense_installments')
+                  ->orWhereNotIn('origin_id', $currentMonthInstallmentIds);
+            })
+            ->where(function ($q) use ($currentMonth) {
+                // exclui despesas avulsas registradas neste mês
+                $q->where('origin_table', '!=', 'expenses')
+                  ->orWhere('created_at', '<', $currentMonth);
+            })
             ->get()
             ->sum(fn($b) => $b->amount - $b->used_amount)) : 0;
 
