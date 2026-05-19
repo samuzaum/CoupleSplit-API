@@ -39,7 +39,8 @@
         <p class="text-xl font-bold text-black dark:text-white">
             R$ {{ number_format($personalTotal, 2, ',', '.') }}
         </p>
-        <p class="text-xs text-gray-500 mt-1">{{ $personal->where('paid_by', auth()->id())->count() }} despesa{{ $personal->where('paid_by', auth()->id())->count() !== 1 ? 's' : '' }}</p>
+        @php $personalCount = $personal->where('paid_by', auth()->id())->count(); @endphp
+        <p class="text-xs text-gray-500 mt-1">{{ $personalCount }} despesa{{ $personalCount !== 1 ? 's' : '' }}</p>
     </div>
     <div class="bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-2xl p-5 text-center">
         <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">Pagamentos</p>
@@ -98,7 +99,7 @@
     @php $isMe = $payment->from_user_id === auth()->id(); @endphp
     <div class="flex justify-between text-sm">
         <span class="text-gray-700 dark:text-gray-300">
-            {{ $isMe ? 'Você → ' . $payment->toUser->name : $payment->fromUser->name . ' → você' }}
+            {{ $isMe ? 'Você → ' . ($payment->toUser?->name ?? 'Parceiro(a)') : ($payment->fromUser?->name ?? 'Parceiro(a)') . ' → você' }}
             <span class="text-xs text-gray-400">{{ $payment->payment_date->format('d/m') }}</span>
         </span>
         <span class="font-medium {{ $isMe ? 'text-red-500' : 'text-green-600' }}">

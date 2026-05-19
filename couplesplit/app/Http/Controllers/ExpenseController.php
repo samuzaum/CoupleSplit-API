@@ -11,6 +11,7 @@ use App\Services\ActivityService;
 use App\Services\ExpenseService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Carbon\Carbon;
 
@@ -164,38 +165,40 @@ class ExpenseController extends Controller
             $billingDate = $this->service->calculateBillingDate($request->card_id, $expenseDate);
             $splitRatio  = $request->is_shared ? round(($request->split_ratio ?? 50) / 100, 4) : 1.0;
 
-            $installmentCount = $expense->installments()->count();
-            // Salvar quais números de parcela estavam pagos ANTES de deletar,
-            // para preservar o estado real (não apenas a contagem) ao recriar
-            $paidInstallmentNumbers = $expense->installments()
-                ->whereNotNull('paid_at')
-                ->pluck('installment_number')
-                ->toArray();
+            DB::transaction(function () use ($request, $expense, $expenseDate, $billingDate, $splitRatio) {
+                $installmentCount = $expense->installments()->count();
+                // Salvar quais números de parcela estavam pagos ANTES de deletar,
+                // para preservar o estado real (não apenas a contagem) ao recriar
+                $paidInstallmentNumbers = $expense->installments()
+                    ->whereNotNull('paid_at')
+                    ->pluck('installment_number')
+                    ->toArray();
 
-            $this->deleteExpenseBalances($expense);
-            ExpenseSplit::where('expense_id', $expense->id)->delete();
+                $this->deleteExpenseBalances($expense);
+                ExpenseSplit::where('expense_id', $expense->id)->delete();
 
-            $expense->update([
-                'card_id'      => $request->card_id,
-                'description'  => $request->description,
-                'notes'        => $request->notes,
-                'category'     => $request->category,
-                'amount'       => $request->amount,
-                'expense_date' => $expenseDate,
-                'billing_date' => $billingDate,
-                'is_shared'    => $request->is_shared,
-                'split_ratio'  => $splitRatio,
-                'is_recurring' => $request->boolean('is_recurring'),
-            ]);
+                $expense->update([
+                    'card_id'      => $request->card_id,
+                    'description'  => $request->description,
+                    'notes'        => $request->notes,
+                    'category'     => $request->category,
+                    'amount'       => $request->amount,
+                    'expense_date' => $expenseDate,
+                    'billing_date' => $billingDate,
+                    'is_shared'    => $request->is_shared,
+                    'split_ratio'  => $splitRatio,
+                    'is_recurring' => $request->boolean('is_recurring'),
+                ]);
 
-            if ($installmentCount > 1) {
-                $expense->installments()->delete();
-                // Passa os números reais das parcelas pagas em vez de só a contagem
-                $this->service->createInstallments($expense, $installmentCount, 0, $paidInstallmentNumbers);
-            }
+                if ($installmentCount > 1) {
+                    $expense->installments()->delete();
+                    // Passa os números reais das parcelas pagas em vez de só a contagem
+                    $this->service->createInstallments($expense, $installmentCount, 0, $paidInstallmentNumbers);
+                }
 
-            $expense->refresh()->load('installments');
-            $this->service->createBalances($expense);
+                $expense->refresh()->load('installments');
+                $this->service->createBalances($expense);
+            });
         }
 
         $this->activity->log($user, $couple->id, 'updated', 'expense', $expense->id,
@@ -222,10 +225,13 @@ class ExpenseController extends Controller
         }
 
         $desc = $expense->description;
-        $this->deleteExpenseBalances($expense);
-        ExpenseSplit::where('expense_id', $expense->id)->delete();
-        $expense->installments()->delete();
-        $expense->delete();
+
+        DB::transaction(function () use ($expense) {
+            $this->deleteExpenseBalances($expense);
+            ExpenseSplit::where('expense_id', $expense->id)->delete();
+            $expense->installments()->delete();
+            $expense->delete();
+        });
 
         $this->activity->log($user, $couple->id, 'deleted', 'expense', null,
             "Excluiu a despesa \"{$desc}\"");
@@ -274,6 +280,7 @@ class ExpenseController extends Controller
         $templates = Expense::where('couple_id', $couple->id)
             ->where('is_recurring', true)
             ->whereNull('parent_id')
+            ->withCount('children')
             ->orderByDesc('expense_date')
             ->get();
 

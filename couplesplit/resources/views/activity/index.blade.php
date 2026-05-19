@@ -46,7 +46,7 @@ $colors = [
         <div class="bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-2xl px-5 py-4">
             <p class="text-sm text-black dark:text-white">{{ $log->description }}</p>
             <p class="text-xs text-gray-400 mt-1">
-                {{ $log->user->name }} · {{ $log->created_at->diffForHumans() }}
+                {{ $log->user?->name ?? 'Usuário' }} · {{ $log->created_at->diffForHumans() }}
             </p>
         </div>
     </li>

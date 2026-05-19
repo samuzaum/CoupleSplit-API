@@ -59,8 +59,8 @@ class ExpenseService
                 ]
             );
 
-            $this->netBalances($payer->id, $user->id);
-            $this->netBalances($user->id, $payer->id);
+            $this->netBalances($payer->id, $user->id, $expense->couple_id);
+            $this->netBalances($user->id, $payer->id, $expense->couple_id);
         }
     }
 
@@ -91,14 +91,15 @@ class ExpenseService
         ]);
     }
 
-    private function netBalances(int $userId, int $relatedUserId): void
+    private function netBalances(int $userId, int $relatedUserId, int $coupleId): void
     {
-        DB::transaction(function () use ($userId, $relatedUserId) {
+        DB::transaction(function () use ($userId, $relatedUserId, $coupleId) {
             $dueInstallmentIds = ExpenseInstallment::whereNull('paid_at')
                 ->whereDate('due_date', '<=', Carbon::now()->endOfMonth())
                 ->pluck('id');
 
-            $credits = Balance::where('user_id', $userId)
+            $credits = Balance::where('couple_id', $coupleId)
+                ->where('user_id', $userId)
                 ->where('related_user_id', $relatedUserId)
                 ->where('type', 'credit')
                 ->whereColumn('used_amount', '<', 'amount')
@@ -110,7 +111,8 @@ class ExpenseService
                 ->lockForUpdate()
                 ->get();
 
-            $debits = Balance::where('user_id', $userId)
+            $debits = Balance::where('couple_id', $coupleId)
+                ->where('user_id', $userId)
                 ->where('related_user_id', $relatedUserId)
                 ->where('type', 'debit')
                 ->whereColumn('used_amount', '<', 'amount')

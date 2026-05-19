@@ -71,4 +71,9 @@ class Expense extends Model
     {
         return $this->hasMany(ExpenseInstallment::class);
     }
+
+    public function children(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_id');
+    }
 }

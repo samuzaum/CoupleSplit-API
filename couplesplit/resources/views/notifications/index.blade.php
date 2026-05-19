@@ -95,7 +95,7 @@
             <p class="text-xs text-gray-500 mt-1">
                 "{{ $n['expense']->description }}"
                 · R$ {{ number_format($n['expense']->amount, 2, ',', '.') }}
-                · {{ $n['expense']->expense_date->format('d/m/Y') }}
+                · {{ $n['expense']->expense_date?->format('d/m/Y') }}
             </p>
         </div>
         <a href="{{ route('expenses.index') }}"

@@ -64,9 +64,9 @@
         <div>
             <p class="text-sm font-medium text-black dark:text-white">
                 @if ($isMe)
-                    Você pagou {{ $payment->toUser->name }}
+                    Você pagou {{ $payment->toUser?->name ?? 'Parceiro(a)' }}
                 @else
-                    {{ $payment->fromUser->name }} pagou você
+                    {{ $payment->fromUser?->name ?? 'Parceiro(a)' }} pagou você
                 @endif
             </p>
             <p class="text-xs text-gray-500 mt-0.5">

@@ -301,7 +301,7 @@ function setPayer(who) {
     id="is_shared_check"
     name="is_shared"
     value="1"
-    {{ old('is_shared', true) ? 'checked' : '' }}
+    {{ old('is_shared', '1') === '1' ? 'checked' : '' }}
     class="rounded border-gray-300"
     onchange="toggleSplitRatio()"
 />

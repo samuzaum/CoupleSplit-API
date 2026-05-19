@@ -184,8 +184,8 @@ $shareIsPaid = $balance ? ($balance->used_amount >= $balance->amount) : false;
 </p>
 
 <p class="text-xs text-gray-500">
-{{ $expense->expense_date->format('d/m/Y') }}
-• {{ $expense->payer->name }}
+{{ $expense->expense_date?->format('d/m/Y') }}
+• {{ $expense->payer?->name ?? 'Desconhecido' }}
 @if ($expense->is_shared)
     • Compartilhada ({{ round($ratio * 100) }}/{{ 100 - round($ratio * 100) }})
 @else

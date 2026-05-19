@@ -30,7 +30,7 @@
 @foreach ($templates as $expense)
 @php
     $ratio   = $expense->split_ratio ?? 0.5;
-    $copies  = $expense->hasMany(\App\Models\Expense::class, 'parent_id')->count();
+    $copies  = $expense->children_count;
 @endphp
 
 <div class="bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-2xl p-5">
