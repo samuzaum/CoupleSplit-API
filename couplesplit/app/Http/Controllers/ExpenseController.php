@@ -165,7 +165,12 @@ class ExpenseController extends Controller
             $splitRatio  = $request->is_shared ? round(($request->split_ratio ?? 50) / 100, 4) : 1.0;
 
             $installmentCount = $expense->installments()->count();
-            $paidInstallmentCount = $expense->installments()->whereNotNull('paid_at')->count();
+            // Salvar quais números de parcela estavam pagos ANTES de deletar,
+            // para preservar o estado real (não apenas a contagem) ao recriar
+            $paidInstallmentNumbers = $expense->installments()
+                ->whereNotNull('paid_at')
+                ->pluck('installment_number')
+                ->toArray();
 
             $this->deleteExpenseBalances($expense);
             ExpenseSplit::where('expense_id', $expense->id)->delete();
@@ -185,7 +190,8 @@ class ExpenseController extends Controller
 
             if ($installmentCount > 1) {
                 $expense->installments()->delete();
-                $this->service->createInstallments($expense, $installmentCount, $paidInstallmentCount);
+                // Passa os números reais das parcelas pagas em vez de só a contagem
+                $this->service->createInstallments($expense, $installmentCount, 0, $paidInstallmentNumbers);
             }
 
             $expense->refresh()->load('installments');
@@ -495,8 +501,10 @@ class ExpenseController extends Controller
         }
 
         if ($month = $request->month) {
-            [$y, $m] = explode('-', $month);
-            $query->whereYear('expense_date', $y)->whereMonth('expense_date', $m);
+            $parts = explode('-', $month);
+            if (count($parts) === 2 && is_numeric($parts[0]) && is_numeric($parts[1])) {
+                $query->whereYear('expense_date', $parts[0])->whereMonth('expense_date', $parts[1]);
+            }
         }
 
         return $query->orderByDesc('expense_date');

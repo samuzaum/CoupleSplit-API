@@ -70,7 +70,12 @@ class PaymentService
                     ->first();
 
                 if ($credit) {
-                    $credit->increment('used_amount', $consume);
+                    // Garante que used_amount nunca ultrapasse amount no crédito espelho
+                    $creditAvailable = (float) $credit->amount - (float) $credit->used_amount;
+                    $creditConsume   = min($consume, $creditAvailable);
+                    if ($creditConsume > 0) {
+                        $credit->increment('used_amount', $creditConsume);
+                    }
                 }
 
                 $remaining -= $consume;
@@ -153,6 +158,10 @@ class PaymentService
                 }
 
                 foreach ($expense->installments as $installment) {
+                    // Parcelas já pagas não geram (nem mantêm) balance de dívida
+                    if ($installment->paid_at !== null) {
+                        continue;
+                    }
                     $amount = round($installment->amount * (1 - ($expense->split_ratio ?? 0.5)), 2);
                     $this->firstOrCreateBalancePair($expense, $expense->paid_by, $member->id, $amount, $installment->id);
                 }

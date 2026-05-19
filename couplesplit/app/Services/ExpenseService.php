@@ -20,7 +20,9 @@ class ExpenseService
 
         $users = $expense->couple->users;
         $payer = $expense->payer;
-        $installments = $expense->installments()->orderBy('installment_number')->get();
+        // Só cria balances para parcelas ainda não pagas — parcelas quitadas antes do cadastro
+        // (paid_installments) não geram dívida entre o casal
+        $installments = $expense->installments()->whereNull('paid_at')->orderBy('installment_number')->get();
 
         foreach ($users as $user) {
             if ($user->id === $payer->id) {
@@ -147,7 +149,13 @@ class ExpenseService
         });
     }
 
-    public function createInstallments(Expense $expense, int $installments, int $paidInstallments = 0): void
+    /**
+     * Cria as parcelas da despesa.
+     *
+     * @param int   $paidInstallments  Número de parcelas já quitadas (conta as primeiras N) — usado no cadastro inicial
+     * @param int[] $paidNumbers       Números específicos das parcelas já pagas — usado na edição para preservar estado real
+     */
+    public function createInstallments(Expense $expense, int $installments, int $paidInstallments = 0, array $paidNumbers = []): void
     {
         $totalCents = (int) round($expense->amount * 100);
         $baseCents = intdiv($totalCents, $installments);
@@ -158,12 +166,17 @@ class ExpenseService
         for ($i = 1; $i <= $installments; $i++) {
             $amount = ($baseCents + ($i <= $remainder ? 1 : 0)) / 100;
 
+            // Se vieram números específicos (edição), usa eles; caso contrário, marca as primeiras N (cadastro)
+            $isPaid = !empty($paidNumbers)
+                ? in_array($i, $paidNumbers, strict: true)
+                : $i <= $paidInstallments;
+
             ExpenseInstallment::create([
                 'expense_id'         => $expense->id,
                 'installment_number' => $i,
                 'amount'             => $amount,
                 'due_date'           => $baseDate->copy()->addMonths($i - 1),
-                'paid_at'            => $i <= $paidInstallments ? Carbon::now() : null,
+                'paid_at'            => $isPaid ? Carbon::now() : null,
             ]);
         }
     }

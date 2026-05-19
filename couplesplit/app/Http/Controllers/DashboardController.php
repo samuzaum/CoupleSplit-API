@@ -102,7 +102,7 @@ class DashboardController extends Controller
             ->filter(fn($n) => $n['type'] === 'budget_exceeded');
 
         $totalIncome  = ($user->monthly_income ?? 0) + ($partner->monthly_income ?? 0);
-        $myRatio      = $totalIncome > 0 ? round($user->monthly_income / $totalIncome * 100) : null;
+        $myRatio      = $totalIncome > 0 ? round(($user->monthly_income ?? 0) / $totalIncome * 100) : null;
         $partnerRatio = $myRatio !== null ? 100 - $myRatio : null;
 
         $myCardCosts = $this->myCardCostsThisCycle($user, $couple);
