@@ -107,6 +107,10 @@ class DashboardController extends Controller
 
         $myCardCosts = $this->myCardCostsThisCycle($user, $couple);
 
+        // share mensal e breakdown do saldo
+        [$myMonthShare, $partnerMonthShare] = $this->monthShareSplit($allExpenses, $user, $coupleMonthTotal);
+        $balanceBreakdown = $this->buildBalanceBreakdown($openBalances, $user, $partner);
+
         return view('dashboard', compact(
             'partner',
             'netBalance',
@@ -127,7 +131,10 @@ class DashboardController extends Controller
             'budgets',
             'openInstallmentsCount',
             'exceededBudgets',
-            'myCardCosts'
+            'myCardCosts',
+            'myMonthShare',
+            'partnerMonthShare',
+            'balanceBreakdown'
         ));
     }
 
@@ -149,6 +156,51 @@ class DashboardController extends Controller
         $this->service->process($user, $couple, $partner, abs($netBalance));
 
         return redirect()->route('dashboard')->with('success', 'Dívida liquidada!');
+    }
+
+    private function monthShareSplit($allExpenses, $user, float $coupleMonthTotal): array
+    {
+        $now = Carbon::now();
+
+        $myShare = round($allExpenses->sum(function (Expense $expense) use ($user, $now) {
+            $amount = $this->expenseMonthlyAmount($expense, $now);
+            if ($amount <= 0) return 0;
+            return $expense->paid_by === $user->id
+                ? $amount * ($expense->split_ratio ?? 0.5)
+                : $amount * (1 - ($expense->split_ratio ?? 0.5));
+        }), 2);
+
+        return [$myShare, round($coupleMonthTotal - $myShare, 2)];
+    }
+
+    private function buildBalanceBreakdown($openBalances, $user, $partner): \Illuminate\Support\Collection
+    {
+        // agrupa créditos e débitos por expense para montar o breakdown
+        return $openBalances->map(function ($balance) use ($user, $partner) {
+            $remaining = round($balance->amount - $balance->used_amount, 2);
+            $isCredit  = $balance->type === 'credit';
+
+            // tenta resolver descrição via origin
+            $description = null;
+            if ($balance->origin_table === 'expenses') {
+                $description = Expense::find($balance->origin_id)?->description;
+            } elseif ($balance->origin_table === 'expense_installments') {
+                $inst = \App\Models\ExpenseInstallment::with('expense')->find($balance->origin_id);
+                if ($inst) {
+                    $description = $inst->expense->description . ' (parcela ' . $inst->installment_number . ')';
+                }
+            }
+
+            return (object) [
+                'description' => $description ?? 'Despesa',
+                'amount'      => $remaining,
+                'is_credit'   => $isCredit,
+                // crédito = parceiro te deve; débito = você deve ao parceiro
+                'label'       => $isCredit
+                    ? $partner->name . ' te deve'
+                    : 'Você deve ' . $partner->name,
+            ];
+        })->filter(fn($b) => $b->amount > 0.001);
     }
 
     private function myCardCostsThisCycle($user, $couple): \Illuminate\Support\Collection

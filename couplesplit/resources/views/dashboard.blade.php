@@ -95,10 +95,14 @@ Tudo certo entre vocês
 <div class="flex justify-center gap-8 mt-6 text-sm flex-wrap">
 
 <div class="text-center">
-<p class="text-xs uppercase tracking-wide text-gray-400 mb-1">Este mês</p>
-<p class="font-semibold text-black dark:text-white">
-R$ {{ number_format($thisMonthDebit, 2, ',', '.') }}
+<p class="text-xs uppercase tracking-wide text-gray-400 mb-1">Gasto conjunto este mês</p>
+<p class="font-semibold text-black dark:text-white">R$ {{ number_format($coupleMonthTotal, 2, ',', '.') }}</p>
+@if ($coupleMonthTotal > 0)
+<p class="text-xs text-gray-400 mt-1">
+    sua parte R$ {{ number_format($myMonthShare, 2, ',', '.') }}
+    &middot; {{ $partner->name }} R$ {{ number_format($partnerMonthShare, 2, ',', '.') }}
 </p>
+@endif
 </div>
 
 <div class="text-center">
@@ -106,6 +110,12 @@ R$ {{ number_format($thisMonthDebit, 2, ',', '.') }}
 <p class="font-semibold {{ $netBalance < 0 ? 'text-red-500' : 'text-green-600' }}">
 {{ $netBalance >= 0 ? 'R$ 0,00' : 'R$ ' . number_format(abs($netBalance), 2, ',', '.') }}
 </p>
+@if ($balanceBreakdown->isNotEmpty())
+<button type="button" onclick="toggleDetail('balance-breakdown')"
+    class="text-xs text-gray-400 hover:text-black dark:hover:text-white mt-1">
+    ver de onde vem →
+</button>
+@endif
 </div>
 
 @if ($openInstallmentsCount > 0)
@@ -118,6 +128,37 @@ R$ {{ number_format($thisMonthDebit, 2, ',', '.') }}
 @endif
 
 </div>
+
+{{-- breakdown expansível do saldo --}}
+@if ($balanceBreakdown->isNotEmpty())
+@php
+    $debits  = $balanceBreakdown->where('is_credit', false);
+    $credits = $balanceBreakdown->where('is_credit', true);
+@endphp
+<div id="balance-breakdown" class="hidden mt-6 text-left border-t border-gray-100 dark:border-gray-800 pt-4 space-y-3">
+
+    @if ($debits->isNotEmpty())
+    <p class="text-xs font-semibold uppercase tracking-wide text-red-400">Você deve {{ $partner->name }}</p>
+    @foreach ($debits as $b)
+    <div class="flex justify-between text-sm gap-4">
+        <span class="text-gray-600 dark:text-gray-400 truncate">{{ $b->description }}</span>
+        <span class="shrink-0 text-red-500 font-medium">- R$ {{ number_format($b->amount, 2, ',', '.') }}</span>
+    </div>
+    @endforeach
+    @endif
+
+    @if ($credits->isNotEmpty())
+    <p class="text-xs font-semibold uppercase tracking-wide text-green-500 {{ $debits->isNotEmpty() ? 'pt-2' : '' }}">{{ $partner->name }} te deve</p>
+    @foreach ($credits as $b)
+    <div class="flex justify-between text-sm gap-4">
+        <span class="text-gray-600 dark:text-gray-400 truncate">{{ $b->description }}</span>
+        <span class="shrink-0 text-green-600 font-medium">+ R$ {{ number_format($b->amount, 2, ',', '.') }}</span>
+    </div>
+    @endforeach
+    @endif
+
+</div>
+@endif
 
 <div class="flex justify-center gap-3 mt-4 flex-wrap">
 
