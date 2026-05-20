@@ -31,17 +31,17 @@ class CardController extends Controller
         abort_if($card->user_id !== auth()->id(), 403);
 
         $request->validate([
-            'name' => 'required|string|max:255',
-            'type' => 'required|in:credit,debit',
+            'name'        => 'required|string|max:255',
+            'type'        => 'required|in:credit,debit',
             'closing_day' => 'required_if:type,credit|nullable|integer|min:1|max:31',
+            'due_day'     => 'nullable|integer|min:1|max:28',
         ]);
 
         $card->update([
-            'name' => $request->name,
-            'type' => $request->type,
-            'closing_day' => $request->type === 'credit'
-                ? $request->closing_day
-                : null,
+            'name'        => $request->name,
+            'type'        => $request->type,
+            'closing_day' => $request->type === 'credit' ? $request->closing_day : null,
+            'due_day'     => $request->type === 'credit' ? $request->due_day     : null,
         ]);
 
         return redirect()->route('cards.index')
@@ -60,17 +60,17 @@ class CardController extends Controller
    public function store(Request $request)
 {
     $request->validate([
-        'name' => 'required|string|max:255',
-        'type' => 'required|in:credit,debit',
+        'name'        => 'required|string|max:255',
+        'type'        => 'required|in:credit,debit',
         'closing_day' => 'required_if:type,credit|nullable|integer|min:1|max:31',
+        'due_day'     => 'nullable|integer|min:1|max:28',
     ]);
 
     Auth::user()->cards()->create([
-        'name' => $request->name,
-        'type' => $request->type,
-        'closing_day' => $request->type === 'credit'
-            ? $request->closing_day
-            : null,
+        'name'        => $request->name,
+        'type'        => $request->type,
+        'closing_day' => $request->type === 'credit' ? $request->closing_day : null,
+        'due_day'     => $request->type === 'credit' ? $request->due_day     : null,
     ]);
     
     return redirect()->route('cards.index')

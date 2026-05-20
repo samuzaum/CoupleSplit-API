@@ -11,6 +11,7 @@ use Laravel\Sanctum\HasApiTokens;
 use App\Models\Couple;
 use App\Models\Card;
 use App\Models\Expense;
+use Illuminate\Support\Carbon;
 
 class User extends Authenticatable
 {
@@ -24,6 +25,7 @@ class User extends Authenticatable
         'email',
         'password',
         'monthly_income',
+        'cycle_start_day',
         'notification_dismissals',
     ];
 
@@ -81,5 +83,36 @@ class User extends Authenticatable
     public function expensesPaid(): HasMany
     {
         return $this->hasMany(Expense::class, 'paid_by');
+    }
+
+    /**
+     * Retorna o início e fim do ciclo financeiro do usuário.
+     * Se cycle_start_day for nulo, usa o mês calendário (dia 1).
+     *
+     * @return array{0: Carbon, 1: Carbon}  [$start, $end]
+     */
+    public function financialCycle(?Carbon $reference = null): array
+    {
+        $ref = ($reference ?? Carbon::now())->copy()->startOfDay();
+        $day = $this->cycle_start_day ?? 1;
+
+        // Início do ciclo: dia $day do mês de $ref, limitado ao último dia do mês
+        $candidateStart = $ref->copy()->startOfMonth();
+        $candidateStart->setDay(min($day, $candidateStart->daysInMonth));
+
+        // Se o candidato ainda está no futuro, retrocede um mês
+        if ($candidateStart->gt($ref)) {
+            $candidateStart->subMonthNoOverflow();
+            $candidateStart->setDay(min($day, $candidateStart->daysInMonth));
+        }
+
+        $candidateStart->startOfDay();
+
+        // Fim do ciclo: próxima ocorrência do dia $day, menos um dia
+        $cycleEnd = $candidateStart->copy()->addMonthNoOverflow();
+        $cycleEnd->setDay(min($day, $cycleEnd->daysInMonth));
+        $cycleEnd->subDay()->endOfDay();
+
+        return [$candidateStart, $cycleEnd];
     }
 }

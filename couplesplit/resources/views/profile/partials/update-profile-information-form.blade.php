@@ -59,6 +59,18 @@
             <x-input-error class="mt-2" :messages="$errors->get('monthly_income')" />
         </div>
 
+        <div>
+            <x-input-label for="cycle_start_day" value="Início do meu mês financeiro (dia)" />
+            <x-text-input id="cycle_start_day" name="cycle_start_day" type="number" min="1" max="28"
+                class="mt-1 block w-full"
+                :value="old('cycle_start_day', $user->cycle_start_day)"
+                placeholder="Ex: 5 (deixe em branco para usar o dia 1)" />
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Define quando começa seu ciclo mensal. Se você recebe no dia 5, coloque 5 — o dashboard vai calcular "este mês" do dia 5 ao dia 4 do mês seguinte.
+            </p>
+            <x-input-error class="mt-2" :messages="$errors->get('cycle_start_day')" />
+        </div>
+
         <div class="flex items-center gap-4">
             <x-primary-button>{{ __('Save') }}</x-primary-button>
 

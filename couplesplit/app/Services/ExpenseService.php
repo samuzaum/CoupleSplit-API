@@ -195,10 +195,17 @@ class ExpenseService
             return $expenseDate;
         }
 
-        if ($expenseDate->day <= $card->closing_day) {
-            return $expenseDate->copy()->startOfMonth();
+        $closingDay = $card->closing_day ?? 1;
+        $dueDay     = $card->due_day ?? 1;
+
+        // Determina o mês de cobrança (ciclo do cartão)
+        if ($expenseDate->day <= $closingDay) {
+            $base = $expenseDate->copy()->startOfMonth();
+        } else {
+            $base = $expenseDate->copy()->addMonthNoOverflow()->startOfMonth();
         }
 
-        return $expenseDate->copy()->addMonth()->startOfMonth();
+        // Aplica o dia de vencimento com proteção de overflow de mês curto
+        return $base->setDay(min($dueDay, $base->daysInMonth));
     }
 }

@@ -25,7 +25,8 @@ class ProfileUpdateRequest extends FormRequest
                 'max:255',
                 Rule::unique(User::class)->ignore($this->user()->id),
             ],
-            'monthly_income' => ['nullable', 'numeric', 'min:0'],
+            'monthly_income'   => ['nullable', 'numeric', 'min:0'],
+            'cycle_start_day' => ['nullable', 'integer', 'min:1', 'max:28'],
         ];
     }
 }

@@ -60,27 +60,31 @@ class DashboardController extends Controller
 
         $thisMonthDebit = $debitAvailable;
 
-        // dados para gráficos
+        // Todas as despesas compartilhadas do casal (base para os gráficos)
         $allExpenses = Expense::where('couple_id', $couple->id)
             ->where('is_shared', true)
             ->with('installments')
             ->get();
 
-        // Gráficos mostram a PARTE DO USUÁRIO em cada categoria/mês,
-        // não o gasto total do casal (que varia conforme quem olha).
+        // Ciclo financeiro do usuário (baseado em cycle_start_day)
+        [$cycleStart, $cycleEnd] = $user->financialCycle();
+        [$prevCycleStart, $prevCycleEnd] = $user->financialCycle($cycleStart->copy()->subDay());
+
+        // byCategory: parte do usuário por categoria NO ciclo atual
         $byCategory = $allExpenses
             ->groupBy('category')
-            ->map(function ($g) use ($user) {
-                return round($g->sum(function ($expense) use ($user) {
-                    $monthAmount = $this->expenseMonthlyAmount($expense, Carbon::now());
-                    if ($monthAmount == 0.0) return 0.0;
+            ->map(function ($g) use ($user, $cycleStart, $cycleEnd) {
+                return round($g->sum(function ($expense) use ($user, $cycleStart, $cycleEnd) {
+                    $amount = $this->expenseAmountInCycle($expense, $cycleStart, $cycleEnd);
+                    if ($amount == 0.0) return 0.0;
                     $ratio = $expense->split_ratio ?? 0.5;
-                    return $monthAmount * ($expense->paid_by === $user->id ? $ratio : 1 - $ratio);
+                    return $amount * ($expense->paid_by === $user->id ? $ratio : 1 - $ratio);
                 }), 2);
             })
             ->filter(fn($total) => $total > 0)
             ->mapWithKeys(fn($total, $key) => [$key ?: 'Sem categoria' => $total]);
 
+        // byMonth: tendência dos últimos 6 meses calendário (mantém meses calendário para o gráfico de tendência)
         $months = collect();
         for ($i = 5; $i >= 0; $i--) {
             $months->push(Carbon::now()->subMonths($i)->format('Y-m'));
@@ -100,14 +104,13 @@ class DashboardController extends Controller
 
         $customCats = $couple->categories()->pluck('name');
 
-        $coupleMonthTotal = $this->sharedMonthlyTotal($couple->id, Carbon::now());
-
-        $lastMonth = Carbon::now()->subMonth();
-        $lastMonthTotal = $this->sharedMonthlyTotal($couple->id, $lastMonth);
+        // Totais usando ciclo financeiro do usuário
+        $coupleMonthTotal = $this->sharedCycleTotal($couple->id, $cycleStart, $cycleEnd);
+        $lastMonthTotal   = $this->sharedCycleTotal($couple->id, $prevCycleStart, $prevCycleEnd);
         $monthDelta = round($coupleMonthTotal - $lastMonthTotal, 2);
 
-        $budgets = $couple->budgets()->get()->map(function ($budget) {
-            $spent = $budget->spentThisMonth();
+        $budgets = $couple->budgets()->get()->map(function ($budget) use ($user) {
+            $spent = $budget->spentThisMonth($user);
             $budget->spent      = round($spent, 2);
             $budget->percentage = min(100, $budget->amount > 0 ? round($spent / $budget->amount * 100) : 0);
             return $budget;
@@ -127,9 +130,9 @@ class DashboardController extends Controller
 
         $myCardCosts = $this->myCardCostsThisCycle($user, $couple);
 
-        // breakdown por expense_date (quando foi gasto, não quando cai na fatura)
-        $balanceBreakdown = $this->buildBalanceBreakdown($allExpenses, $user, $partner);
-        $myMonthShare     = round($balanceBreakdown->sum('my_share'), 2);
+        // breakdown por ciclo financeiro do usuário
+        $balanceBreakdown  = $this->buildBalanceBreakdown($allExpenses, $user, $partner, $cycleStart, $cycleEnd);
+        $myMonthShare      = round($balanceBreakdown->sum('my_share'), 2);
         $partnerMonthShare = round($balanceBreakdown->sum('partner_share'), 2);
 
         return view('dashboard', compact(
@@ -181,23 +184,18 @@ class DashboardController extends Controller
         return redirect()->route('dashboard')->with('success', 'Dívida liquidada!');
     }
 
-    private function buildBalanceBreakdown($allExpenses, $user, $partner): \Illuminate\Support\Collection
+    private function buildBalanceBreakdown($allExpenses, $user, $partner, Carbon $cycleStart, Carbon $cycleEnd): \Illuminate\Support\Collection
     {
-        $now = Carbon::now();
-
         return $allExpenses
-            ->filter(function (Expense $e) use ($now) {
+            ->filter(function (Expense $e) use ($cycleStart, $cycleEnd) {
                 if ($e->installments->isNotEmpty()) {
-                    // parceladas: mostra pelo mês de vencimento da parcela
-                    return $this->expenseMonthlyAmount($e, $now) > 0;
+                    return $this->expenseAmountInCycle($e, $cycleStart, $cycleEnd) > 0;
                 }
-                // avulsas: mostra pelo mês em que foi gasta (expense_date)
-                return $e->expense_date && $e->expense_date->isSameMonth($now);
+                return $e->expense_date && $e->expense_date->between($cycleStart, $cycleEnd);
             })
-            ->map(function (Expense $expense) use ($user, $partner, $now) {
-                // valor do mês: parcela devida ou valor cheio se avulsa
+            ->map(function (Expense $expense) use ($user, $partner, $cycleStart, $cycleEnd) {
                 $monthAmount = $expense->installments->isNotEmpty()
-                    ? round($this->expenseMonthlyAmount($expense, $now), 2)
+                    ? round($this->expenseAmountInCycle($expense, $cycleStart, $cycleEnd), 2)
                     : round((float) $expense->amount, 2);
 
                 $splitRatio   = $expense->split_ratio ?? 0.5;
@@ -209,7 +207,9 @@ class DashboardController extends Controller
 
                 $label = $expense->description;
                 if ($expense->installments->isNotEmpty()) {
-                    $inst = $expense->installments->first(fn($i) => $i->due_date->isSameMonth($now));
+                    $inst = $expense->installments->first(
+                        fn($i) => $i->due_date && $i->due_date->between($cycleStart, $cycleEnd)
+                    );
                     if ($inst) {
                         $label .= ' (parcela ' . $inst->installment_number . '/' . $expense->installments->count() . ')';
                     }
@@ -241,9 +241,13 @@ class DashboardController extends Controller
             ->map(function ($card) use ($user, $couple, $today) {
                 $closingDay = $card->closing_day ?? 1;
 
+                // Safe setDay: clamp ao último dia do mês para evitar overflow em meses curtos
+                $candidateThisMonth = $today->copy()->setDay(min($closingDay, $today->daysInMonth));
                 $nextClosing = $today->day < $closingDay
-                    ? $today->copy()->setDay($closingDay)
-                    : $today->copy()->addMonthNoOverflow()->setDay($closingDay);
+                    ? $candidateThisMonth
+                    : $today->copy()->addMonthNoOverflow()->setDay(
+                        min($closingDay, $today->copy()->addMonthNoOverflow()->daysInMonth)
+                      );
 
                 $installments = ExpenseInstallment::whereHas('expense', fn($q) =>
                     $q->where('couple_id', $couple->id)
@@ -317,6 +321,38 @@ class DashboardController extends Controller
             ->filter(fn($c) => $c->total_bill > 0);
     }
 
+    /**
+     * Total do casal em despesas compartilhadas dentro de um período (ciclo financeiro).
+     */
+    private function sharedCycleTotal(int $coupleId, Carbon $from, Carbon $to): float
+    {
+        return round(Expense::where('couple_id', $coupleId)
+            ->where('is_shared', true)
+            ->with('installments')
+            ->get()
+            ->sum(fn($expense) => $this->expenseAmountInCycle($expense, $from, $to)), 2);
+    }
+
+    /**
+     * Valor da despesa que cai dentro de um período [from, to] (inclusivo).
+     * Para parceladas: soma as parcelas com due_date no período.
+     * Para avulsas: retorna o valor total se expense_date está no período.
+     */
+    private function expenseAmountInCycle(Expense $expense, Carbon $from, Carbon $to): float
+    {
+        if ($expense->installments->isNotEmpty()) {
+            return (float) $expense->installments
+                ->filter(fn($i) => $i->due_date && $i->due_date->between($from, $to))
+                ->sum('amount');
+        }
+
+        $date = $expense->expense_date;
+        return $date && $date->between($from, $to) ? (float) $expense->amount : 0.0;
+    }
+
+    /**
+     * Mantido para o gráfico de tendência (6 meses calendário).
+     */
     private function sharedMonthlyTotal(int $coupleId, Carbon $month): float
     {
         return round(Expense::where('couple_id', $coupleId)
@@ -337,8 +373,6 @@ class DashboardController extends Controller
                 ->sum('amount');
         }
 
-        // usa expense_date (quando foi gasto) como referência de período,
-        // não billing_date (que depende do ciclo do cartão e empurra compras pro mês seguinte)
         $date = $expense->expense_date;
 
         if (!$date || !$date->isSameMonth($month)) {

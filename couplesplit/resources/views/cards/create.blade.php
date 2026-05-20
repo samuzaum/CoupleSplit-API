@@ -43,6 +43,15 @@
         />
     </div>
 
+    <div id="due-day-field">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Dia de vencimento</label>
+        <input id="due_day" name="due_day" type="number" min="1" max="28"
+            value="{{ old('due_day') }}" placeholder="Ex: 10"
+            class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-black text-black dark:text-white"
+        />
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Dia em que a fatura vence (usado para calcular datas de parcelas).</p>
+    </div>
+
     <button type="submit"
         class="w-full px-6 py-3 rounded-full font-semibold bg-black text-white dark:bg-white dark:text-black hover:opacity-90 transition">
         Salvar cartão
@@ -56,8 +65,11 @@
 <script>
 const typeSelect    = document.getElementById('type');
 const closingField  = document.getElementById('closing-day-field');
+const dueField      = document.getElementById('due-day-field');
 function toggleClosingDay() {
-    closingField.style.display = typeSelect.value === 'credit' ? '' : 'none';
+    const isCredit = typeSelect.value === 'credit';
+    closingField.style.display = isCredit ? '' : 'none';
+    dueField.style.display     = isCredit ? '' : 'none';
 }
 typeSelect.addEventListener('change', toggleClosingDay);
 toggleClosingDay();
