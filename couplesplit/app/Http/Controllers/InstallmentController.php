@@ -38,9 +38,13 @@ class InstallmentController extends Controller
             ->map(function ($card) use ($couple, $today) {
                 $closingDay = $card->closing_day ?? 1;
 
+                // Safe setDay: clamp ao último dia do mês para evitar overflow em meses curtos
+                $candidateThisMonth = $today->copy()->setDay(min($closingDay, $today->daysInMonth));
                 $nextClosing = $today->day < $closingDay
-                    ? $today->copy()->setDay($closingDay)
-                    : $today->copy()->addMonthNoOverflow()->setDay($closingDay);
+                    ? $candidateThisMonth
+                    : $today->copy()->addMonthNoOverflow()->setDay(
+                        min($closingDay, $today->copy()->addMonthNoOverflow()->daysInMonth)
+                      );
 
                 $installments = ExpenseInstallment::whereHas('expense', fn($q) =>
                     $q->where('couple_id', $couple->id)->where('card_id', $card->id)
@@ -79,7 +83,10 @@ class InstallmentController extends Controller
     public function markPaid(ExpenseInstallment $installment)
     {
         $this->authorizeInstallment($installment);
-        abort_if($installment->due_date->isFuture(), 403);
+
+        if ($installment->due_date->isFuture()) {
+            return back()->with('error', 'Não é possível marcar uma parcela futura como paga.');
+        }
 
         $installment->update(['paid_at' => now()]);
 

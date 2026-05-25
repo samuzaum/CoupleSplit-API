@@ -16,6 +16,9 @@ use Illuminate\Support\Facades\DB;
 
 class PaymentService
 {
+    /** Evita rodar ensureInstallmentBalances mais de uma vez por request por usuário */
+    private static array $ensuredForUser = [];
+
     public function process(User $payer, Couple $couple, User $partner, float $amount): Payment
     {
         return DB::transaction(function () use ($payer, $couple, $partner, $amount) {
@@ -138,6 +141,13 @@ class PaymentService
 
     private function ensureInstallmentBalances(User $user): void
     {
+        // Roda no máximo uma vez por request por usuário — evita N+1 quando
+        // openBalances() é chamado múltiplas vezes (dashboard, settle, etc.)
+        if (isset(self::$ensuredForUser[$user->id])) {
+            return;
+        }
+        self::$ensuredForUser[$user->id] = true;
+
         $couple = $user->currentCouple();
         if (!$couple) {
             return;

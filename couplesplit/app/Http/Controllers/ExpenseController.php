@@ -43,12 +43,12 @@ class ExpenseController extends Controller
 
     public function store(Request $request)
     {
+        // Validação inicial sem card_id (owner depende do payer, calculado abaixo)
         $request->validate([
-            'description'  => 'required|string|max:255',
-            'notes'        => 'nullable|string|max:1000',
-            'amount'       => 'required|numeric|min:0.01',
-            'expense_date' => 'required|date',
-            'card_id'           => 'nullable|exists:cards,id',
+            'description'       => 'required|string|max:255',
+            'notes'             => 'nullable|string|max:1000',
+            'amount'            => 'required|numeric|min:0.01',
+            'expense_date'      => 'required|date',
             'is_shared'         => 'required|boolean',
             'split_ratio'       => 'nullable|integer|min:1|max:99',
             'is_recurring'      => 'nullable|boolean',
@@ -64,44 +64,58 @@ class ExpenseController extends Controller
         $partner       = $couple->users()->where('users.id', '!=', $user->id)->first();
         $paidByPartner = $request->boolean('paid_by_partner') && $partner;
         $paidBy        = $paidByPartner ? $partner->id : $user->id;
-        $expenseDate   = Carbon::parse($request->expense_date);
-        $billingDate   = $this->service->calculateBillingDate($request->card_id, $expenseDate);
-        // O slider "Sua parte" representa sempre a fração do USUÁRIO logado.
-        // split_ratio no banco = fração do PAGADOR.
-        // Quando o parceiro pagou, inverte para converter "minha parte" → "parte do pagador".
-        $userPct    = (int)($request->split_ratio ?? 50);
-        $payerPct   = $paidByPartner ? (100 - $userPct) : $userPct;
-        $splitRatio = $request->is_shared ? round($payerPct / 100, 4) : 1.0;
 
-        $expense = Expense::create([
-            'couple_id'    => $couple->id,
-            'paid_by'      => $paidBy,
-            'card_id'      => $request->card_id,
-            'description'  => $request->description,
-            'notes'        => $request->notes,
-            'category'     => $request->category,
-            'amount'       => $request->amount,
-            'expense_date' => $expenseDate,
-            'billing_date' => $billingDate,
-            'is_shared'    => $request->is_shared,
-            'split_ratio'  => $splitRatio,
-            'is_recurring' => $request->boolean('is_recurring'),
-        ]);
+        // Valida card_id verificando que pertence ao pagador real
+        if ($request->filled('card_id')) {
+            $request->validate([
+                'card_id' => ['required', Rule::exists('cards', 'id')->where('user_id', $paidBy)],
+            ]);
+        }
 
-        $installments = (int) ($request->installments ?? 1);
+        $installments     = (int) ($request->installments ?? 1);
         $paidInstallments = (int) ($request->paid_installments ?? 0);
+
         if ($paidInstallments > $installments) {
             return back()
-                ->withErrors(['paid_installments' => 'As parcelas ja quitadas nao podem ser maiores que o total de parcelas.'])
+                ->withErrors(['paid_installments' => 'As parcelas já quitadas não podem ser maiores que o total de parcelas.'])
                 ->withInput();
         }
 
-        if ($installments > 1) {
-            $this->service->createInstallments($expense, $installments, $paidInstallments);
-            $expense->load('installments');
-        }
+        $expenseDate = Carbon::parse($request->expense_date);
+        $billingDate = $this->service->calculateBillingDate($request->card_id, $expenseDate);
 
-        $this->service->createBalances($expense);
+        // O slider "Sua parte" representa sempre a fração do USUÁRIO logado.
+        // split_ratio no banco = fração do PAGADOR.
+        // Quando o parceiro pagou, inverte: "minha parte" → "parte do pagador".
+        $userPct    = (int) ($request->split_ratio ?? 50);
+        $payerPct   = $paidByPartner ? (100 - $userPct) : $userPct;
+        $splitRatio = $request->is_shared ? round($payerPct / 100, 4) : 1.0;
+
+        $expense = DB::transaction(function () use ($request, $couple, $paidBy, $expenseDate, $billingDate, $splitRatio, $installments, $paidInstallments) {
+            $expense = Expense::create([
+                'couple_id'    => $couple->id,
+                'paid_by'      => $paidBy,
+                'card_id'      => $request->card_id,
+                'description'  => $request->description,
+                'notes'        => $request->notes,
+                'category'     => $request->category,
+                'amount'       => $request->amount,
+                'expense_date' => $expenseDate,
+                'billing_date' => $billingDate,
+                'is_shared'    => $request->is_shared,
+                'split_ratio'  => $splitRatio,
+                'is_recurring' => $request->boolean('is_recurring'),
+            ]);
+
+            if ($installments > 1) {
+                $this->service->createInstallments($expense, $installments, $paidInstallments);
+                $expense->load('installments');
+            }
+
+            $this->service->createBalances($expense);
+
+            return $expense;
+        });
 
         $this->activity->log($user, $couple->id, 'created', 'expense', $expense->id,
             "Criou a despesa \"{$expense->description}\" (R$ " . number_format($expense->amount, 2, ',', '.') . ")");
@@ -113,7 +127,7 @@ class ExpenseController extends Controller
                 ->where('category', $expense->category)
                 ->first();
             if ($budget) {
-                $spent = $budget->spentThisMonth();
+                $spent = $budget->spentThisMonth($user);
                 if ($spent > $budget->amount) {
                     $over = number_format($spent - $budget->amount, 2, ',', '.');
                     $redirect = $redirect->with('budget_warning',
