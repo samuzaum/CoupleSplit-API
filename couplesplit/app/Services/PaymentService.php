@@ -117,7 +117,8 @@ class PaymentService
             ->whereDate('due_date', '<=', Carbon::now()->endOfMonth())
             ->pluck('id');
 
-        return Balance::where('user_id', $user->id)
+        return Balance::where('couple_id', $user->currentCouple()?->id)
+            ->where('user_id', $user->id)
             ->where('related_user_id', $partner->id)
             ->whereColumn('used_amount', '<', 'amount')
             ->where(function ($query) use ($dueInstallmentIds, $installmentExpenseIds) {

@@ -103,6 +103,11 @@ bg-white dark:bg-black text-black dark:text-white
 @endif
 </select>
 
+{{-- Quem pagou (read-only no edit — não pode mudar o pagador) --}}
+<p class="text-xs text-gray-500 dark:text-gray-400">
+    Pago por: <span class="font-medium text-black dark:text-white">{{ $payerName }}</span>
+</p>
+
 <select
 id="card_select"
 name="card_id"

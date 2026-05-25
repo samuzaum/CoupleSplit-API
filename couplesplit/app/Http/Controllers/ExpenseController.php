@@ -146,17 +146,24 @@ class ExpenseController extends Controller
 
         abort_if($expense->couple_id !== $couple->id, 403);
 
-        $cards      = $user->cards;
-        $customCats = $couple->categories()->pluck('name');
+        $customCats   = $couple->categories()->pluck('name');
         $hasPayments  = $this->hasExpensePayments($expense);
+        $partner      = $couple->users()->where('users.id', '!=', $user->id)->first();
+        $paidByMe     = $expense->paid_by === $user->id;
+
+        // Exibir os cartões do pagador real para pré-selecionar corretamente.
+        // Se o parceiro pagou, mostramos os cartões dele (read-only no form).
+        $cards = $paidByMe ? $user->cards : ($partner?->cards ?? collect());
 
         // split_ratio no banco = fração do PAGADOR. Para exibir "Sua parte" corretamente,
         // se o pagador não é o usuário logado, invertemos o valor para a perspectiva do usuário.
-        $splitRatioDisplay = $expense->paid_by === $user->id
+        $splitRatioDisplay = $paidByMe
             ? (int) round($expense->split_ratio * 100)
             : (int) round((1 - $expense->split_ratio) * 100);
 
-        return view('expenses.edit', compact('expense', 'cards', 'hasPayments', 'customCats', 'splitRatioDisplay'));
+        $payerName = $paidByMe ? 'Você' : ($partner?->name ?? 'Parceiro(a)');
+
+        return view('expenses.edit', compact('expense', 'cards', 'hasPayments', 'customCats', 'splitRatioDisplay', 'paidByMe', 'payerName'));
     }
 
     public function update(Request $request, Expense $expense)
@@ -180,7 +187,8 @@ class ExpenseController extends Controller
                 'notes'        => 'nullable|string|max:1000',
                 'amount'       => 'required|numeric|min:0.01',
                 'expense_date' => 'required|date',
-                'card_id'      => ['nullable', Rule::exists('cards', 'id')->where('user_id', Auth::id())],
+                // card_id deve pertencer ao pagador original da despesa (que não muda no edit)
+                'card_id'      => ['nullable', Rule::exists('cards', 'id')->where('user_id', $expense->paid_by)],
                 'is_shared'    => 'required|boolean',
                 'split_ratio'  => 'nullable|integer|min:1|max:99',
                 'is_recurring' => 'nullable|boolean',

@@ -276,14 +276,18 @@ function setPayer(who) {
     document.getElementById('payer_me').className      = isPartner ? inactiveClass : activeClass;
     document.getElementById('payer_partner').className = isPartner ? activeClass   : inactiveClass;
 
-    var partnerGroup = document.getElementById('partner_cards_group');
+    // Usa disabled (suporte universal) em vez de hidden (inconsistente em Safari/Firefox para optgroup)
     document.querySelectorAll('.partner-card-option').forEach(function(opt) {
-        opt.hidden = !isPartner;
+        opt.disabled = !isPartner;
+        opt.hidden   = !isPartner;
     });
+    var partnerGroup = document.getElementById('partner_cards_group');
     if (partnerGroup) partnerGroup.hidden = !isPartner;
 
     document.querySelectorAll('[data-owner="me"]').forEach(function(opt) {
-        opt.hidden = isPartner && opt.value !== '';
+        var hide = isPartner && opt.value !== '';
+        opt.disabled = hide;
+        opt.hidden   = hide;
     });
 
     var select = document.getElementById('card_select');
