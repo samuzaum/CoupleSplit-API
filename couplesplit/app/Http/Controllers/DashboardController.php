@@ -58,8 +58,6 @@ class DashboardController extends Controller
             ->take(5)
             ->get();
 
-        $thisMonthDebit = $debitAvailable;
-
         // Todas as despesas compartilhadas do casal (base para os gráficos)
         $allExpenses = Expense::where('couple_id', $couple->id)
             ->where('is_shared', true)
@@ -104,9 +102,9 @@ class DashboardController extends Controller
 
         $customCats = $couple->categories()->pluck('name');
 
-        // Totais usando ciclo financeiro do usuário
-        $coupleMonthTotal = $this->sharedCycleTotal($couple->id, $cycleStart, $cycleEnd);
-        $lastMonthTotal   = $this->sharedCycleTotal($couple->id, $prevCycleStart, $prevCycleEnd);
+        // Totais usando ciclo financeiro do usuário — reutiliza $allExpenses já carregado
+        $coupleMonthTotal = $this->sharedCycleTotal($allExpenses, $cycleStart, $cycleEnd);
+        $lastMonthTotal   = $this->sharedCycleTotal($allExpenses, $prevCycleStart, $prevCycleEnd);
         $monthDelta = round($coupleMonthTotal - $lastMonthTotal, 2);
 
         $budgets = $couple->budgets()->get()->map(function ($budget) use ($user) {
@@ -135,12 +133,15 @@ class DashboardController extends Controller
         $myMonthShare      = round($balanceBreakdown->sum('my_share'), 2);
         $partnerMonthShare = round($balanceBreakdown->sum('partner_share'), 2);
 
+        // Eager-load users no couple para evitar lazy load no blade
+        $couple->loadMissing('users');
+
         return view('dashboard', compact(
+            'couple',
             'partner',
             'netBalance',
             'creditAvailable',
             'debitAvailable',
-            'thisMonthDebit',
             'openDebits',
             'openCredits',
             'recentExpenses',
@@ -323,14 +324,11 @@ class DashboardController extends Controller
 
     /**
      * Total do casal em despesas compartilhadas dentro de um período (ciclo financeiro).
+     * Recebe a collection $allExpenses já carregada para evitar query redundante.
      */
-    private function sharedCycleTotal(int $coupleId, Carbon $from, Carbon $to): float
+    private function sharedCycleTotal(\Illuminate\Support\Collection $expenses, Carbon $from, Carbon $to): float
     {
-        return round(Expense::where('couple_id', $coupleId)
-            ->where('is_shared', true)
-            ->with('installments')
-            ->get()
-            ->sum(fn($expense) => $this->expenseAmountInCycle($expense, $from, $to)), 2);
+        return round($expenses->sum(fn($expense) => $this->expenseAmountInCycle($expense, $from, $to)), 2);
     }
 
     /**

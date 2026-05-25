@@ -6,7 +6,6 @@
 
 @php
 $user = auth()->user();
-$couple = $user->couples()->first();
 @endphp
 
 @if (session('success'))
