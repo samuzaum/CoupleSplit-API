@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Services\NotificationService;
+use App\Services\PaymentService;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\View;
@@ -12,7 +13,9 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        // Garante uma instância por request em produção e uma por teste em testes —
+        // evita que o cache interno de PaymentService vaze entre requests/testes.
+        $this->app->scoped(PaymentService::class);
     }
 
     public function boot(): void

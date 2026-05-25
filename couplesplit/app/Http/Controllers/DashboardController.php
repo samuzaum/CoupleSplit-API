@@ -350,18 +350,6 @@ class DashboardController extends Controller
         return $date && $date->between($from, $to) ? (float) $expense->amount : 0.0;
     }
 
-    /**
-     * Mantido para o gráfico de tendência (6 meses calendário).
-     */
-    private function sharedMonthlyTotal(int $coupleId, Carbon $month): float
-    {
-        return round(Expense::where('couple_id', $coupleId)
-            ->where('is_shared', true)
-            ->with('installments')
-            ->get()
-            ->sum(fn($expense) => $this->expenseMonthlyAmount($expense, $month)), 2);
-    }
-
     private function expenseMonthlyAmount(Expense $expense, Carbon $month): float
     {
         if ($expense->installments->isNotEmpty()) {
