@@ -100,8 +100,6 @@ class DashboardController extends Controller
             return [$label => round($total, 2)];
         });
 
-        $customCats = $couple->categories()->pluck('name');
-
         // Totais usando ciclo financeiro do usuário — reutiliza $allExpenses já carregado
         $coupleMonthTotal = $this->sharedCycleTotal($allExpenses, $cycleStart, $cycleEnd);
         $lastMonthTotal   = $this->sharedCycleTotal($allExpenses, $prevCycleStart, $prevCycleEnd);
@@ -125,6 +123,7 @@ class DashboardController extends Controller
         $totalIncome  = ($user->monthly_income ?? 0) + ($partner->monthly_income ?? 0);
         $myRatio      = $totalIncome > 0 ? round(($user->monthly_income ?? 0) / $totalIncome * 100) : null;
         $partnerRatio = $myRatio !== null ? 100 - $myRatio : null;
+        // Ambos sem renda → ratio fica null em ambos (blade exibe mensagem de "renda não informada")
 
         $myCardCosts = $this->myCardCostsThisCycle($user, $couple);
 
@@ -133,10 +132,18 @@ class DashboardController extends Controller
         $myMonthShare      = round($balanceBreakdown->sum('my_share'), 2);
         $partnerMonthShare = round($balanceBreakdown->sum('partner_share'), 2);
 
+        // Variáveis pré-computadas para o blade (sem @php no template)
+        $sharedMonthTotal = round($myMonthShare + $partnerMonthShare, 2);
+        $deltaSign        = $monthDelta >= 0 ? '+' : '';
+        $totalIOwe        = round($balanceBreakdown->sum('i_owe'), 2);
+        $totalPartnerOwes = round($balanceBreakdown->sum('partner_owes'), 2);
+        $totalMyCost      = round($myCardCosts->sum('my_cost'), 2);
+
         // Eager-load users no couple para evitar lazy load no blade
         $couple->loadMissing('users');
 
         return view('dashboard', compact(
+            'user',
             'couple',
             'partner',
             'netBalance',
@@ -147,7 +154,6 @@ class DashboardController extends Controller
             'recentExpenses',
             'byCategory',
             'byMonth',
-            'customCats',
             'coupleMonthTotal',
             'lastMonthTotal',
             'monthDelta',
@@ -159,8 +165,13 @@ class DashboardController extends Controller
             'myCreditInstallmentsCount',
             'exceededBudgets',
             'myCardCosts',
+            'sharedMonthTotal',
             'myMonthShare',
             'partnerMonthShare',
+            'deltaSign',
+            'totalIOwe',
+            'totalPartnerOwes',
+            'totalMyCost',
             'balanceBreakdown'
         ));
     }
@@ -244,11 +255,10 @@ class DashboardController extends Controller
 
                 // Safe setDay: clamp ao último dia do mês para evitar overflow em meses curtos
                 $candidateThisMonth = $today->copy()->setDay(min($closingDay, $today->daysInMonth));
+                $nextMonth  = $today->copy()->addMonthNoOverflow();
                 $nextClosing = $today->day < $closingDay
                     ? $candidateThisMonth
-                    : $today->copy()->addMonthNoOverflow()->setDay(
-                        min($closingDay, $today->copy()->addMonthNoOverflow()->daysInMonth)
-                      );
+                    : $nextMonth->setDay(min($closingDay, $nextMonth->daysInMonth));
 
                 $installments = ExpenseInstallment::whereHas('expense', fn($q) =>
                     $q->where('couple_id', $couple->id)
@@ -262,6 +272,7 @@ class DashboardController extends Controller
 
                 $singleExpenses = Expense::where('couple_id', $couple->id)
                     ->where('card_id', $card->id)
+                    ->where('paid_by', $user->id)
                     ->whereDoesntHave('installments')
                     ->whereYear('billing_date', $nextClosing->year)
                     ->whereMonth('billing_date', $nextClosing->month)
