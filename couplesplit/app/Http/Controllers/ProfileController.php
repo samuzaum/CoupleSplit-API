@@ -21,7 +21,9 @@ class ProfileController extends Controller
 
         // Benefícios próprios + benefícios do casal criados pelo parceiro
         $benefits = \App\Models\UserBenefit::where('user_id', $user->id)
-            ->orWhere(fn($q) => $q->where('is_couple', true)->where('couple_id', $couple?->id))
+            ->when($couple, fn($q) => $q->orWhere(
+                fn($inner) => $inner->where('is_couple', true)->where('couple_id', $couple->id)
+            ))
             ->get()
             ->map(function ($b) {
                 $b->used      = $b->usedThisMonth();

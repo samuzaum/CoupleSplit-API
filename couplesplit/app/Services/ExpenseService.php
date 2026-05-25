@@ -177,7 +177,7 @@ class ExpenseService
                 'expense_id'         => $expense->id,
                 'installment_number' => $i,
                 'amount'             => $amount,
-                'due_date'           => $baseDate->copy()->addMonths($i - 1),
+                'due_date'           => $baseDate->copy()->addMonthsNoOverflow($i - 1),
                 'paid_at'            => $isPaid ? Carbon::now() : null,
             ]);
         }

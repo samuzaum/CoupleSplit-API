@@ -16,9 +16,15 @@ class BenefitController extends Controller
             'is_couple'      => 'nullable|boolean',
         ]);
 
-        $user      = Auth::user();
-        $isCouple  = $request->boolean('is_couple');
-        $coupleId  = $isCouple ? $user->currentCouple()?->id : null;
+        $user     = Auth::user();
+        $couple   = $user->currentCouple();
+        $isCouple = $request->boolean('is_couple');
+
+        if ($isCouple && !$couple) {
+            return back()->withErrors(['is_couple' => 'Você ainda não faz parte de um casal.'])->withInput();
+        }
+
+        $coupleId = $isCouple ? $couple->id : null;
 
         $user->benefits()->create([
             'name'           => $request->name,

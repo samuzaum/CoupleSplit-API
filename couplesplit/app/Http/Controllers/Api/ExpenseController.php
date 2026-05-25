@@ -65,9 +65,9 @@ class ExpenseController extends Controller
         $paidInstallments = (int) ($validated['paid_installments'] ?? 0);
         if ($paidInstallments > $installments) {
             return response()->json([
-                'message' => 'As parcelas ja quitadas nao podem ser maiores que o total de parcelas.',
+                'message' => 'As parcelas já quitadas não podem ser maiores que o total de parcelas.',
                 'errors' => [
-                    'paid_installments' => ['As parcelas ja quitadas nao podem ser maiores que o total de parcelas.'],
+                    'paid_installments' => ['As parcelas já quitadas não podem ser maiores que o total de parcelas.'],
                 ],
             ], 422);
         }

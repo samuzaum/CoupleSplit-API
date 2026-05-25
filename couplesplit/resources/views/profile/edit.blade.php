@@ -45,10 +45,12 @@
                                         · <span class="{{ $b->remaining > 0 ? 'text-green-600' : 'text-red-500' }}">R$ {{ number_format($b->remaining, 2, ',', '.') }} restante</span>
                                     </p>
                                 </div>
+                                @if ($b->user_id === auth()->id())
                                 <form method="POST" action="{{ route('benefits.destroy', $b) }}">
                                     @csrf @method('DELETE')
                                     <button type="submit" class="text-xs text-red-400 hover:text-red-600">Remover</button>
                                 </form>
+                                @endif
                             </div>
                             @endforeach
                         </div>

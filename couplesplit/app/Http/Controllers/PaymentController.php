@@ -34,10 +34,8 @@ class PaymentController extends Controller
             ->orderBy('created_at')
             ->get()
             ->map(function ($balance) {
-                $balance->remaining    = round($balance->amount - $balance->used_amount, 2);
-                $balance->label        = $balance->origin === 'expense'
-                    ? (\App\Models\Expense::find($balance->origin_id)?->description ?? 'Despesa')
-                    : 'Outro';
+                $balance->remaining = round($balance->amount - $balance->used_amount, 2);
+                $balance->label     = $this->service->descriptionForBalance($balance) ?? 'Saldo';
                 return $balance;
             });
 
